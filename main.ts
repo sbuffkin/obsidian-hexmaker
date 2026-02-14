@@ -1,6 +1,12 @@
 import { App, ItemView, Menu, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import MiniSearch from 'minisearch'
+//https://github.com/lucaong/minisearch
+
 
 const VIEW_TYPE_HEX_MAP = "duckmage-hex-map";
+
+
+//let minisearch = new MiniSearch()
 
 /** Normalize folder path: no leading/trailing slashes. */
 function normalizeFolder(path: string): string {
@@ -56,6 +62,11 @@ interface DuckmagePluginSettings {
 	templatePath: string;
 	hexGap: string;
 	terrainPalette: TerrainColor[];
+	gridSize: {
+		cols: number;
+		rows: number;
+	};
+	zoomLevel: number;
 }
 
 const DEFAULT_TERRAIN_PALETTE: TerrainColor[] = [
@@ -74,6 +85,11 @@ const DEFAULT_SETTINGS: DuckmagePluginSettings = {
 	templatePath: "",
 	hexGap: "0.15",
 	terrainPalette: DEFAULT_TERRAIN_PALETTE,
+	gridSize: {
+		cols: 20,
+		rows: 16
+	},
+	zoomLevel: 1,
 };
 
 export default class DuckmagePlugin extends Plugin {
@@ -123,13 +139,15 @@ export default class DuckmagePlugin extends Plugin {
 }
 
 class HexMapView extends ItemView {
-	static readonly GRID_COLS = 20;
-	static readonly GRID_ROWS = 16;
 	plugin: DuckmagePlugin;
+	gridCols: number;
+	gridRows: number;
 
 	constructor(leaf: WorkspaceLeaf, plugin: DuckmagePlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.gridCols = plugin.settings.gridSize.cols;
+		this.gridRows = plugin.settings.gridSize.rows;
 	}
 
 	getViewType(): string {
@@ -156,9 +174,9 @@ class HexMapView extends ItemView {
 
 		const folder = normalizeFolder(this.plugin.settings.hexFolder);
 		const palette = this.plugin.settings.terrainPalette ?? [];
-		for (let y = 0; y < HexMapView.GRID_ROWS; y++) {
+		for (let y = 0; y < this.gridRows; y++) {
 			const rowEl = contentEl.createDiv({ cls: "duckmage-hex-row" });
-			for (let x = 0; x < HexMapView.GRID_COLS; x++) {
+			for (let x = 0; x < this.gridCols; x++) {
 				const path = folder ? `${folder}/${x}_${y}.md` : `${x}_${y}.md`;
 				const file = this.app.vault.getAbstractFileByPath(path);
 				const exists = file instanceof TFile;
@@ -177,6 +195,9 @@ class HexMapView extends ItemView {
 				if (exists) hexEl.createSpan({ cls: "duckmage-hex-dot" });
 
 				hexEl.addEventListener("click", () => this.onHexClick(x, y));
+				hexEl.addEventListener("dragstart", (e) => this.onHexDragStart(e, x, y));
+				hexEl.addEventListener("dragover", (e) => this.onHexDragOver(e, x, y));
+				hexEl.addEventListener("drop", (e) => this.onHexDrop(e, x, y));
 				hexEl.addEventListener("contextmenu", (e) => this.onHexContextMenu(e, x, y));
 			}
 		}
@@ -202,28 +223,60 @@ class HexMapView extends ItemView {
 					.onClick(async () => {
 						clearHighlight();
 						let file = this.app.vault.getAbstractFileByPath(path);
+						hexEl.style.backgroundColor = entry.color;
 						if (!(file instanceof TFile)) {
 							file = await this.createHexNote(x, y, path);
-							if (!file) return;
+							if (!file) {
+								//temporarily assign
+								//wait and get the file
+								await new Promise(resolve => setTimeout(resolve, 2000));
+								file = this.app.vault.getAbstractFileByPath(path);
+							}
 						}
 						await setTerrainInFile(this.app, path, entry.name);
 						this.renderGrid(new Map([[path, entry.name]]));
 					})
 			);
 		}
-		const fileExists = this.app.vault.getAbstractFileByPath(path) instanceof TFile;
-		if (fileExists) {
-			menu.addSeparator();
-			menu.addItem((item) =>
-				item
-					.setTitle("Clear color")
-					.onClick(async () => {
-						clearHighlight();
-						await setTerrainInFile(this.app, path, null);
-						this.renderGrid(new Map([[path, null]]));
-					})
-			);
-		}
+		// //allow adding links to the hex for landmarks/towns/dungeons etc
+		// //todo instead of prompt have user search for a file to link
+		// menu.addItem((item) =>
+		// 	item
+		// 		.setTitle("Add landmark link")
+		// 		.setIcon("link")
+		// 		.onClick(async () => {
+		// 			//todo search for a link
+		// 			const landmarkLink = 
+		// 			if (landmarkLink) {
+		// 				const landmarkLinks = JSON.parse(hexEl.getAttribute("data-landmark-links") || "[]");
+		// 				landmarkLinks.push(landmarkLink);
+		// 				hexEl.setAttribute("data-landmark-links", JSON.stringify(landmarkLinks));
+		// 				this.renderGrid();
+		// 			}
+		// 		})
+		// );
+		// //allow showing list of landmark links
+		// menu.addItem((item) =>
+		// 	item
+		// 		.setTitle("Landmark links")
+		// 		.setIcon("link")
+		// 		.onClick(async () => {
+		// 			const landmarkLinks = JSON.parse(hexEl.getAttribute("data-landmark-links") || "[]");
+		// 			const menu = new Menu();
+		// 			for (const link of landmarkLinks) {
+		// 				menu.addItem((item) =>
+		// 					item
+		// 						.setTitle(link)
+		// 						.setIcon("link")
+		// 						.onClick(async () => {
+		// 							const leaf = this.app.workspace.getLeaf(false);
+		// 							await leaf.openFile(link);
+		// 						})
+		// 				);
+		// 			}
+		// 			menu.showAtMouseEvent(evt);
+		// 		})
+		// );
 		menu.showAtMouseEvent(evt);
 	}
 
@@ -242,6 +295,30 @@ class HexMapView extends ItemView {
 
 		const leaf = this.app.workspace.getLeaf(false);
 		await leaf.openFile(fileToOpen);
+	}
+
+	private async onHexDragStart(evt: DragEvent, x: number, y: number): Promise<void> {
+		const path = this.plugin.hexPath(x, y);
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) return;
+		//check if dataTransfer is null
+		if (evt.dataTransfer) {
+			evt.dataTransfer.setData("text/plain", path);
+		}
+	}
+
+	private async onHexDragOver(evt: DragEvent, x: number, y: number): Promise<void> {
+		const path = this.plugin.hexPath(x, y);
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) return;
+		evt.preventDefault();
+	}
+
+	private async onHexDrop(evt: DragEvent, x: number, y: number): Promise<void> {
+		const path = this.plugin.hexPath(x, y);
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile)) return;
+		evt.preventDefault();
 	}
 
 	private async createHexNote(x: number, y: number, path: string): Promise<TFile | null> {
@@ -335,6 +412,29 @@ class DuckmageSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+
+		new Setting(containerEl)
+			.setName("Grid Width")
+			.setDesc("Width of Grid")
+			.addText((text)=>
+				text.setPlaceholder("16")
+				.setValue(String(this.plugin.settings.gridSize.cols) ?? "16")
+					.onChange(async (value) => {
+						this.plugin.settings.gridSize.cols = (Number(value.trim()) ?? 16) || 16;
+						await this.plugin.saveSettings();
+					})
+			)
+		new Setting(containerEl)
+			.setName("Grid Height")
+			.setDesc("Height of Grid")
+			.addText((text)=>
+				text.setPlaceholder("20")
+				.setValue(String(this.plugin.settings.gridSize.rows) ?? "20")
+					.onChange(async (value) => {
+						this.plugin.settings.gridSize.rows = (Number(value.trim()) ?? 20) || 20;
+						await this.plugin.saveSettings();
+					})
+			)
 
 		new Setting(containerEl)
 			.setName("Hex cell spacing")

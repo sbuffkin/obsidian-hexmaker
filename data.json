@@ -1,5 +1,41 @@
 {
   "mySetting": "default",
   "hexFolder": "RPG/duckmage/world/hexes",
-  "templatePath": "RPG/duckmage/world/hextemplate.md"
+  "templatePath": "RPG/duckmage/world/hextemplate.md",
+  "hexGap": "0.15",
+  "terrainPalette": [
+    {
+      "name": "mountain",
+      "color": "#6e7b91"
+    },
+    {
+      "name": "water",
+      "color": "#17375e"
+    },
+    {
+      "name": "grass",
+      "color": "#229b66"
+    },
+    {
+      "name": "forest",
+      "color": "#0a431f"
+    },
+    {
+      "name": "cliffs",
+      "color": "#a86f1f"
+    },
+    {
+      "name": "desert",
+      "color": "#c6b47b"
+    },
+    {
+      "name": "snow",
+      "color": "#e0f2fe"
+    }
+  ],
+  "gridSize": {
+    "cols": 25,
+    "rows": 16
+  },
+  "zoomLevel": 1
 }
