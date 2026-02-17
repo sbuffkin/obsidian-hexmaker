@@ -1,5 +1,6 @@
 {
   "mySetting": "default",
+  "worldFolder": "RPG/duckmage/world",
   "hexFolder": "RPG/duckmage/world/hexes",
   "templatePath": "RPG/duckmage/world/hextemplate.md",
   "hexGap": "0.15",
@@ -31,6 +32,10 @@
     {
       "name": "snow",
       "color": "#e0f2fe"
+    },
+    {
+      "name": "aaaaa",
+      "color": "#600aff"
     }
   ],
   "gridSize": {

@@ -1,4 +1,4 @@
-import { App, ItemView, Menu, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, Menu, Modal, Notice, Plugin, PluginSettingTab, Setting, SuggestModal, TFile, WorkspaceLeaf } from "obsidian";
 import MiniSearch from 'minisearch'
 //https://github.com/lucaong/minisearch
 
@@ -58,6 +58,7 @@ export interface TerrainColor {
 
 interface DuckmagePluginSettings {
 	mySetting: string;
+	worldFolder: string;
 	hexFolder: string;
 	templatePath: string;
 	hexGap: string;
@@ -81,6 +82,7 @@ const DEFAULT_TERRAIN_PALETTE: TerrainColor[] = [
 
 const DEFAULT_SETTINGS: DuckmagePluginSettings = {
 	mySetting: "default",
+	worldFolder: "world",
 	hexFolder: "world/hexes",
 	templatePath: "",
 	hexGap: "0.15",
@@ -174,8 +176,12 @@ class HexMapView extends ItemView {
 
 		const folder = normalizeFolder(this.plugin.settings.hexFolder);
 		const palette = this.plugin.settings.terrainPalette ?? [];
+
+		// Create grid container
+		const gridContainer = contentEl.createDiv({ cls: "duckmage-hex-map-grid" });
+
 		for (let y = 0; y < this.gridRows; y++) {
-			const rowEl = contentEl.createDiv({ cls: "duckmage-hex-row" });
+			const rowEl = gridContainer.createDiv({ cls: "duckmage-hex-row" });
 			for (let x = 0; x < this.gridCols; x++) {
 				const path = folder ? `${folder}/${x}_${y}.md` : `${x}_${y}.md`;
 				const file = this.app.vault.getAbstractFileByPath(path);
@@ -201,7 +207,78 @@ class HexMapView extends ItemView {
 				hexEl.addEventListener("contextmenu", (e) => this.onHexContextMenu(e, x, y));
 			}
 		}
+
+		/**
+		 * Displays the terrain selection modal.
+		 * Moving this into its own public function allows for future re-use or customization.
+		 * Each terrain is rendered as a button with color preview.
+		 */
+
 	}
+	private openTerrainModal (
+		x: number,
+		y: number,
+		palette: Array<{ name: string; color: string }>,
+		hexEl: HTMLElement,
+		currentTerrain?: string
+	) {
+		class TerrainModal extends Modal {
+			constructor(public app: App, public onChoose: (terrainName: string) => void, public palette: Array<{ name: string; color: string }>, public selected: string | undefined) {
+				super(app);
+			}
+
+			onOpen() {
+				const { contentEl } = this;
+				contentEl.empty();
+				contentEl.createEl("h3", { text: "Choose terrain" });
+
+				const list = contentEl.createDiv({ cls: "duckmage-terrain-list" });
+				this.palette.forEach(entry => {
+					const btn = list.createEl("button", {
+						cls: "duckmage-terrain-btn" + (entry.name === this.selected ? " is-selected" : "")
+					});
+					btn.style.display = "flex";
+					btn.style.alignItems = "center";
+					btn.style.gap = "0.5em";
+					const swatch = btn.createSpan({ cls: "duckmage-terrain-color-preview" });
+					swatch.style.backgroundColor = entry.color;
+					swatch.style.display = "inline-block";
+					swatch.style.width = "18px";
+					swatch.style.height = "18px";
+					swatch.style.borderRadius = "3px";
+					btn.createSpan({ text: entry.name, cls: "duckmage-terrain-name" });
+					btn.onclick = async () => {
+						this.onChoose(entry.name);
+						this.close();
+					};
+				});
+				// Optionally, add custom buttons here in the modal as needed
+			}
+
+			onClose() {
+				this.contentEl.empty();
+			}
+		}
+
+		const modal = new TerrainModal(this.app,
+			async (terrainName: string) => {
+				hexEl.style.backgroundColor = palette.find(p => p.name === terrainName)?.color ?? "";
+				let file = this.app.vault.getAbstractFileByPath(this.plugin.hexPath(x, y));
+				if (!(file instanceof TFile)) {
+					file = await (this as any).createHexNote(x, y, this.plugin.hexPath(x, y));
+					if (!file) {
+						await new Promise(resolve => setTimeout(resolve, 2000));
+						file = this.app.vault.getAbstractFileByPath(this.plugin.hexPath(x, y));
+					}
+				}
+				await setTerrainInFile(this.app, this.plugin.hexPath(x, y), terrainName);
+				this.renderGrid(new Map([[this.plugin.hexPath(x, y), terrainName]]));
+			},
+			palette,
+			currentTerrain
+		);
+		modal.open();
+	};
 
 	private onHexContextMenu(evt: MouseEvent, x: number, y: number): void {
 		evt.preventDefault();
@@ -215,29 +292,166 @@ class HexMapView extends ItemView {
 		};
 
 		const menu = new Menu();
-		for (const entry of palette) {
-			menu.addItem((item) =>
-				item
-					.setTitle(entry.name)
-					.setIcon("palette")
-					.onClick(async () => {
-						clearHighlight();
-						let file = this.app.vault.getAbstractFileByPath(path);
-						hexEl.style.backgroundColor = entry.color;
-						if (!(file instanceof TFile)) {
-							file = await this.createHexNote(x, y, path);
-							if (!file) {
-								//temporarily assign
-								//wait and get the file
-								await new Promise(resolve => setTimeout(resolve, 2000));
-								file = this.app.vault.getAbstractFileByPath(path);
+
+		menu.addItem((item) =>
+			item
+				.setTitle("Link file to hex")
+				.setIcon("link")
+				.onClick(async () => {
+					// Open file suggestion modal
+					// Use Obsidian's FileSuggest modal (if available)
+					let files: TFile[];
+					const rootFolder = this.plugin.settings.worldFolder?.trim();
+					if (rootFolder) {
+						const allFiles = this.app.vault.getFiles();
+						const normalizedRoot = rootFolder.replace(/^\/+|\/+$/g, "");
+						files = allFiles.filter(f => f.path.startsWith(normalizedRoot + "/") || f.path === normalizedRoot);
+					} else {
+						files = this.app.vault.getFiles();
+					}
+					return new Promise<void>((resolve) => {
+						const modal = new (class extends SuggestModal<TFile> {
+							constructor(app: App) {
+								super(app);
+								this.setPlaceholder("Search for a file to link...");
 							}
-						}
-						await setTerrainInFile(this.app, path, entry.name);
-						this.renderGrid(new Map([[path, entry.name]]));
-					})
-			);
-		}
+							getSuggestions(query: string): TFile[] {
+								return files
+									.filter(f => f.basename.toLowerCase().contains(query.toLowerCase()))
+									.sort((a, b) => a.basename.localeCompare(b.basename));
+							}
+							renderSuggestion(file: TFile, el: HTMLElement) {
+								el.createSpan({ text: file.basename });
+								el.createEl("small", { text: ` (${file.path})`, cls: "duckmage-suggestion-path" });
+							}
+							onChooseSuggestion(file: TFile, evt: MouseEvent | KeyboardEvent) {
+								// Find or create the hex note file representing this hex
+								const hexPath = this.app.vault.getAbstractFileByPath(path);
+								const targetFile = file;
+								const filesToEdit: { file: TFile; linkTo: TFile }[] = [];
+
+								// Only proceed if both files are valid TFile objects
+								if (hexPath instanceof TFile && targetFile instanceof TFile) {
+									// Add files for mutual linking
+									filesToEdit.push({ file: hexPath, linkTo: targetFile });
+									filesToEdit.push({ file: targetFile, linkTo: hexPath });
+								}
+
+								const getLinkText = (from: TFile, to: TFile) => {
+									// Create relative link path as per Obsidian linking (no .md)
+									const fromDir = from.path.substring(0, from.path.lastIndexOf('/'));
+									let rel = this.app.metadataCache.fileToLinktext(to, fromDir);
+									return `[[${rel}]]`;
+								};
+
+								const addLinkIfNotPresent = async (file: TFile, linkTo: TFile) => {
+									const linkText = getLinkText(file, linkTo);
+									let content = await this.app.vault.read(file);
+
+									// Only add link if not already present (as link)
+									if (!content.includes(linkText)) {
+										// Add the link at the end
+										content = `${content.trim()}\n\n${linkText}\n`;
+										await this.app.vault.modify(file, content);
+									}
+								};
+
+								Promise.all(filesToEdit.map(({file, linkTo}) => addLinkIfNotPresent(file, linkTo)))
+									.then(() => {
+										resolve();
+										// Optionally re-render grid
+										if (this && typeof (this as any).owner?.renderGrid === 'function') {
+											(this as any).owner.renderGrid();
+										} else if ((this as any).app && typeof (this as any).app.workspace?.trigger === "function") {
+											(this as any).app.workspace.trigger('duckmage:refresh');
+										}
+									})
+									.catch((err) => {
+										console.error('Failed to link files:', err);
+										resolve();
+									});
+							}
+						})(this.app);
+						modal.open();
+					});
+				})
+		);
+
+
+
+		// Get the current terrain key for this hex
+		const currentTerrainKey = getTerrainFromFile(this.app, path);
+
+		menu.addItem((item) =>
+			item
+				.setTitle("Set Terrain")
+				.setIcon("palette")
+				.onClick(() => {
+					this.openTerrainModal(x, y, palette, hexEl, currentTerrainKey as string);
+				})
+		);
+
+		//const terrainMenu = new Menu();
+		// for (const entry of palette) {
+		// 	terrainMenu.addItem((item) =>
+		// 		item
+		// 			.setTitle(entry.name)
+		// 			.setIcon("palette")
+		// 			.onClick(async () => {
+		// 				clearHighlight();
+		// 				let file = this.app.vault.getAbstractFileByPath(path);
+		// 				hexEl.style.backgroundColor = entry.color;
+		// 				if (!(file instanceof TFile)) {
+		// 					file = await this.createHexNote(x, y, path);
+		// 					if (!file) {
+		// 						await new Promise(resolve => setTimeout(resolve, 2000));
+		// 						file = this.app.vault.getAbstractFileByPath(path);
+		// 					}
+		// 				}
+		// 				await setTerrainInFile(this.app, path, entry.name);
+		// 				this.renderGrid(new Map([[path, entry.name]]));
+		// 			})
+		// 	);
+		// }
+
+		// menu.addItem((item) =>
+		// 	item
+		// 		.setTitle("Terrain")
+		// 		.setIcon("palette")
+		// 		.onClick((evt) => {
+		// 			terrainMenu.showAtMouseEvent(evt as MouseEvent);
+		// 		})
+		// );
+
+		// for (const entry of palette) {
+		// 	menu.addItem((item) =>
+		// 		item
+		// 			.setTitle(entry.name)
+		// 			.setIcon("palette")
+		// 			.onClick(async () => {
+		// 				clearHighlight();
+		// 				let file = this.app.vault.getAbstractFileByPath(path);
+		// 				hexEl.style.backgroundColor = entry.color;
+		// 				if (!(file instanceof TFile)) {
+		// 					file = await this.createHexNote(x, y, path);
+		// 					if (!file) {
+		// 						//temporarily assign
+		// 						//wait and get the file
+		// 						await new Promise(resolve => setTimeout(resolve, 2000));
+		// 						file = this.app.vault.getAbstractFileByPath(path);
+		// 					}
+		// 				}
+		// 				await setTerrainInFile(this.app, path, entry.name);
+		// 				this.renderGrid(new Map([[path, entry.name]]));
+		// 			})
+		// 	);
+		// }
+
+
+		
+
+
+		
 		// //allow adding links to the hex for landmarks/towns/dungeons etc
 		// //todo instead of prompt have user search for a file to link
 		// menu.addItem((item) =>
@@ -386,6 +600,19 @@ class DuckmageSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
+
+		new Setting(containerEl)
+		.setName("World notes folder")
+		.setDesc("Vault-relative path where world files are stored.")
+		.addText((text) =>
+			text
+				.setPlaceholder("world")
+				.setValue(this.plugin.settings.worldFolder)
+				.onChange(async (value) => {
+					this.plugin.settings.worldFolder = normalizeFolder(value ?? "");
+					await this.plugin.saveSettings();
+				})
+		);
 
 		new Setting(containerEl)
 			.setName("Hex notes folder")
