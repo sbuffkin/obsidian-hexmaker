@@ -129,12 +129,15 @@
 	margin-bottom: 1em;
 }
 
-/* Terrain picker grid */
+/* Terrain picker grid — capped at 2 rows, scrollable */
 .duckmage-terrain-picker {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.4em;
 	margin-bottom: 0.75em;
+	max-height: 132px;
+	overflow-y: auto;
+	padding-right: 2px; /* avoid clipping scrollbar */
 }
 
 .duckmage-terrain-option {
@@ -207,6 +210,22 @@
 .duckmage-add-btn {
 	font-size: 0.8em;
 	padding: 0.15em 0.5em;
+}
+
+.duckmage-link-select {
+	font-size: 0.85em;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-normal);
+	padding: 0.15em 0.3em;
+	max-width: 160px;
+	cursor: pointer;
+}
+
+.duckmage-link-select:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
 }
 
 .duckmage-link-list {
@@ -297,8 +316,48 @@
 	border-color: var(--interactive-accent);
 }
 
+/* ── Modal: icon override ─────────────────────────────────────────────────── */
+
+.duckmage-icon-override-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin-top: 0.75em;
+}
+
+.duckmage-icon-override-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+}
+
 /* ── Settings: terrain palette ────────────────────────────────────────────── */
 
 .duckmage-palette-list .duckmage-palette-item {
 	margin-bottom: 0.5em;
+	display: flex;
+	align-items: center;
+	gap: 0.25em;
+}
+
+.duckmage-palette-drag-handle {
+	cursor: grab;
+	color: var(--text-muted);
+	font-size: 1.2em;
+	line-height: 1;
+	user-select: none;
+	flex-shrink: 0;
+}
+
+.duckmage-palette-drag-handle:active {
+	cursor: grabbing;
+}
+
+.duckmage-palette-item.duckmage-palette-dragging {
+	opacity: 0.4;
+}
+
+.duckmage-palette-item.duckmage-palette-drop-target {
+	outline: 2px dashed var(--interactive-accent);
+	border-radius: 4px;
 }

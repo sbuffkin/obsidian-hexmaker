@@ -55,6 +55,41 @@ async function setTerrainInFile(app: App, path: string, terrainKey: string | nul
 	return true;
 }
 
+function getIconOverrideFromFile(app: App, path: string): string | null {
+	const file = app.vault.getAbstractFileByPath(path);
+	if (!(file instanceof TFile)) return null;
+	const cache = app.metadataCache.getFileCache(file);
+	const icon = cache?.frontmatter?.icon;
+	return typeof icon === "string" ? icon : null;
+}
+
+async function setIconOverrideInFile(app: App, path: string, icon: string | null): Promise<boolean> {
+	const file = app.vault.getAbstractFileByPath(path);
+	if (!(file instanceof TFile)) return false;
+	const content = await app.vault.read(file);
+	const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+	let newContent: string;
+	if (fmMatch) {
+		const fmBlock = fmMatch[1];
+		const rest = content.slice(fmMatch[0].length);
+		let newFm: string;
+		if (icon === null) {
+			newFm = fmBlock.replace(/^\s*icon:\s*[^\r\n]*(?:\r?\n)?/gm, "").trimEnd();
+		} else {
+			const iconLine = /^\s*icon:\s*.*$/m;
+			newFm = iconLine.test(fmBlock)
+				? fmBlock.replace(iconLine, `icon: ${icon}`)
+				: fmBlock.trimEnd() + (fmBlock.endsWith("\n") ? "" : "\n") + `icon: ${icon}\n`;
+		}
+		newContent = `---\n${newFm}\n---\n${rest}`;
+	} else {
+		if (icon === null) return true;
+		newContent = `---\nicon: ${icon}\n---\n\n${content}`;
+	}
+	await app.vault.modify(file, newContent);
+	return true;
+}
+
 function getIconUrl(plugin: DuckmagePlugin, iconFilename: string): string {
 	return plugin.app.vault.adapter.getResourcePath(`${plugin.manifest.dir}/icons/${iconFilename}`);
 }
@@ -157,6 +192,8 @@ interface DuckmagePluginSettings {
 	mySetting: string;
 	worldFolder: string;
 	hexFolder: string;
+	townsFolder: string;
+	dungeonsFolder: string;
 	templatePath: string;
 	hexGap: string;
 	terrainPalette: TerrainColor[];
@@ -220,6 +257,8 @@ const DEFAULT_SETTINGS: DuckmagePluginSettings = {
 	mySetting: "default",
 	worldFolder: "world",
 	hexFolder: "world/hexes",
+	townsFolder: "",
+	dungeonsFolder: "",
 	templatePath: "",
 	hexGap: "0.15",
 	terrainPalette: DEFAULT_TERRAIN_PALETTE,
@@ -559,10 +598,12 @@ class HexMapView extends ItemView {
 
 				if (terrainEntry?.color) hexEl.style.backgroundColor = terrainEntry.color;
 
-				if (terrainEntry?.icon) {
+				const iconOverride = getIconOverrideFromFile(this.app, path);
+				const iconToShow = iconOverride ?? terrainEntry?.icon;
+				if (iconToShow) {
 					const img = hexEl.createEl("img", { cls: "duckmage-hex-icon" });
-					img.src = getIconUrl(this.plugin, terrainEntry.icon);
-					img.alt = terrainEntry.name;
+					img.src = getIconUrl(this.plugin, iconToShow);
+					img.alt = terrainEntry?.name ?? "";
 				}
 
 				hexEl.createSpan({ cls: "duckmage-hex-label", text: `${x},${y}` });
@@ -621,9 +662,9 @@ class HexEditorModal extends Modal {
 		contentEl.createEl("hr", { cls: "duckmage-editor-divider" });
 		contentEl.createEl("h3", { text: "World features" });
 
-		for (const section of LINK_SECTIONS) {
-			await this.renderLinkSection(contentEl, path, section, hexExists);
-		}
+		await this.renderDropdownSection(contentEl, path, "Towns", hexExists, this.plugin.settings.townsFolder);
+		await this.renderDropdownSection(contentEl, path, "Dungeons", hexExists, this.plugin.settings.dungeonsFolder);
+		await this.renderLinkSection(contentEl, path, "Features", hexExists);
 
 		contentEl.createEl("hr", { cls: "duckmage-editor-divider" });
 		contentEl.createEl("h3", { text: "Notes" });
@@ -676,6 +717,71 @@ class HexEditorModal extends Modal {
 				this.close();
 			});
 		}
+
+		// Icon override
+		const iconRow = section.createDiv({ cls: "duckmage-icon-override-row" });
+		iconRow.createSpan({ text: "Icon override", cls: "duckmage-icon-override-label" });
+		const iconSelect = iconRow.createEl("select", { cls: "duckmage-icon-override-select" });
+		iconSelect.createEl("option", { value: "", text: "— use terrain default —" });
+		for (const icon of this.plugin.availableIcons) {
+			const label = icon.replace(/^bw-/, "").replace(/\.png$/, "").replace(/-/g, " ");
+			iconSelect.createEl("option", { value: icon, text: label });
+		}
+		iconSelect.value = getIconOverrideFromFile(this.app, path) ?? "";
+		iconSelect.addEventListener("change", async () => {
+			await this.ensureHexNote();
+			await setIconOverrideInFile(this.app, path, iconSelect.value || null);
+			this.onChanged();
+		});
+	}
+
+	private getFilesForDropdown(folder: string): TFile[] {
+		const normalized = normalizeFolder(folder);
+		const all = this.app.vault.getMarkdownFiles();
+		const scoped = normalized ? all.filter(f => f.path.startsWith(normalized + "/")) : all;
+		return scoped
+			.filter(f => !f.basename.startsWith("_"))
+			.sort((a, b) => a.basename.localeCompare(b.basename));
+	}
+
+	private async renderDropdownSection(
+		container: HTMLElement,
+		path: string,
+		section: LinkSection,
+		hexExists: boolean,
+		sourceFolder: string,
+	): Promise<void> {
+		const sectionEl = container.createDiv({ cls: "duckmage-editor-link-section" });
+		const header = sectionEl.createDiv({ cls: "duckmage-link-section-header" });
+		header.createEl("h4", { text: section });
+
+		const select = header.createEl("select", { cls: "duckmage-link-select" });
+		select.createEl("option", { value: "", text: "— add —" });
+		for (const file of this.getFilesForDropdown(sourceFolder)) {
+			select.createEl("option", { value: file.path, text: file.basename });
+		}
+
+		const linksEl = sectionEl.createDiv({ cls: "duckmage-link-list" });
+		if (hexExists) {
+			this.renderLinkList(linksEl, await getLinksInSection(this.app, path, section));
+		} else {
+			linksEl.createSpan({ text: "None", cls: "duckmage-link-empty" });
+		}
+
+		select.addEventListener("change", async () => {
+			const selectedPath = select.value;
+			select.value = "";
+			if (!selectedPath) return;
+			const file = this.app.vault.getAbstractFileByPath(selectedPath);
+			if (!(file instanceof TFile)) return;
+			const hexFile = await this.ensureHexNote();
+			if (!hexFile) { new Notice("Could not create hex note."); return; }
+			const linkText = `[[${this.app.metadataCache.fileToLinktext(file, path)}]]`;
+			await addLinkToSection(this.app, path, section, linkText);
+			this.onChanged();
+			linksEl.empty();
+			this.renderLinkList(linksEl, await getLinksInSection(this.app, path, section));
+		});
 	}
 
 	private async renderLinkSection(
@@ -833,6 +939,32 @@ class DuckmageSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Towns folder")
+			.setDesc("Vault-relative folder to populate the Towns dropdown in the hex editor. Files starting with _ are excluded.")
+			.addText(text =>
+				text
+					.setPlaceholder("world/towns")
+					.setValue(this.plugin.settings.townsFolder)
+					.onChange(async value => {
+						this.plugin.settings.townsFolder = normalizeFolder(value ?? "");
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Dungeons folder")
+			.setDesc("Vault-relative folder to populate the Dungeons dropdown in the hex editor. Files starting with _ are excluded.")
+			.addText(text =>
+				text
+					.setPlaceholder("world/dungeons")
+					.setValue(this.plugin.settings.dungeonsFolder)
+					.onChange(async value => {
+						this.plugin.settings.dungeonsFolder = normalizeFolder(value ?? "");
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
 			.setName("Template path")
 			.setDesc("Vault-relative path to a hex note template. Supports {{x}}, {{y}}, {{title}}. Include ## Towns, ## Dungeons, and ## Features headings for the link sections.")
 			.addText(text =>
@@ -893,9 +1025,45 @@ class DuckmageSettingTab extends PluginSettingTab {
 		const listEl = containerEl.createDiv({ cls: "duckmage-palette-list" });
 		const palette = this.plugin.settings.terrainPalette ?? [];
 
+		let dragSrcIndex = -1;
+
 		for (let i = 0; i < palette.length; i++) {
 			const entry = palette[i];
 			const itemEl = listEl.createDiv({ cls: "duckmage-palette-item" });
+			itemEl.draggable = true;
+
+			// Drag handle
+			itemEl.createSpan({ cls: "duckmage-palette-drag-handle", text: "⠿" });
+
+			itemEl.addEventListener("dragstart", (e: DragEvent) => {
+				dragSrcIndex = i;
+				itemEl.addClass("duckmage-palette-dragging");
+				e.dataTransfer?.setDragImage(itemEl, 0, 0);
+			});
+			itemEl.addEventListener("dragend", () => {
+				itemEl.removeClass("duckmage-palette-dragging");
+				listEl.querySelectorAll(".duckmage-palette-drop-target").forEach(el =>
+					el.classList.remove("duckmage-palette-drop-target"),
+				);
+			});
+			itemEl.addEventListener("dragover", (e: DragEvent) => {
+				e.preventDefault();
+				listEl.querySelectorAll(".duckmage-palette-drop-target").forEach(el =>
+					el.classList.remove("duckmage-palette-drop-target"),
+				);
+				itemEl.addClass("duckmage-palette-drop-target");
+			});
+			itemEl.addEventListener("drop", async (e: DragEvent) => {
+				e.preventDefault();
+				const dropIndex = i;
+				if (dragSrcIndex === -1 || dragSrcIndex === dropIndex) return;
+				const pal = this.plugin.settings.terrainPalette;
+				const [moved] = pal.splice(dragSrcIndex, 1);
+				pal.splice(dropIndex, 0, moved);
+				dragSrcIndex = -1;
+				await this.plugin.saveSettings();
+				this.display();
+			});
 
 			new Setting(itemEl)
 				.addText(text =>

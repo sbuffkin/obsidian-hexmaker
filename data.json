@@ -2,6 +2,8 @@
   "mySetting": "default",
   "worldFolder": "RPG/duckmage/world",
   "hexFolder": "RPG/duckmage/hexes",
+  "townsFolder": "RPG/duckmage/world/towns",
+  "dungeonsFolder": "RPG/duckmage/world/dungeons",
   "templatePath": "RPG/duckmage/world/hextemplate.md",
   "hexGap": "0.15",
   "terrainPalette": [
@@ -37,11 +39,6 @@
     {
       "name": "snow",
       "color": "#e0f2fe"
-    },
-    {
-      "name": "aaaaa",
-      "color": "#432e6b",
-      "icon": "bw-swamp.png"
     },
     {
       "name": "hills",
@@ -201,6 +198,11 @@
     {
       "name": "swamp",
       "color": "#365314",
+      "icon": "bw-swamp.png"
+    },
+    {
+      "name": "danger",
+      "color": "#432e6b",
       "icon": "bw-swamp.png"
     }
   ],
