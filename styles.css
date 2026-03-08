@@ -1,31 +1,41 @@
 /* Duckmage plugin styles */
 
-/* Hex map view */
+/* ── Hex map view ─────────────────────────────────────────────────────────── */
+
 .duckmage-hex-map-container {
+	overflow: hidden;
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.duckmage-hex-map-viewport {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+	will-change: transform;
+	cursor: grab;
 	padding: 1em;
-	overflow: auto;
+}
+
+.duckmage-hex-map-viewport.is-dragging {
+	cursor: grabbing;
 }
 
 .duckmage-hex-row {
 	display: flex;
 	flex-wrap: nowrap;
 	justify-content: flex-start;
-	/* Flat-top hex: vertical step is 3/4 of hex height, so pull next row up by 1/4 of full height = half of --hex-size */
 	margin-bottom: calc(var(--hex-size, 2.2em) * -0.5);
 }
 
-.duckmage-hex-row:nth-child(even) {
-	/* Offset even rows by exactly half hex width so they tessellate */
+.duckmage-hex-row-offset {
 	margin-left: calc(var(--hex-size, 2.2em) * 1.732 / 2);
-}
-
-.duckmage-hex:focus {
-	outline: none;
 }
 
 .duckmage-hex {
 	--hex-size: 2.2em;
-	/* Flat-top regular hex: width = sqrt(3)*size, height = 2*size */
 	width: calc(var(--hex-size) * 1.732);
 	height: calc(var(--hex-size) * 2);
 	clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
@@ -41,14 +51,15 @@
 	transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
+.duckmage-hex:focus { outline: none; }
+
 .duckmage-hex:hover {
 	background: var(--background-modifier-hover);
 	border-color: var(--interactive-accent);
 }
 
-/* Has-note state: accent border and dot only (no purple fill so terrain/clear stays clear) */
 .duckmage-hex-exists {
-	border-color: var(--interactive-accent);
+	border-color: var(--background-modifier-border-hover);
 }
 
 .duckmage-hex-exists:hover {
@@ -56,12 +67,29 @@
 	background: var(--background-modifier-hover);
 }
 
+/* Terrain icon fills the hex, sits behind the label */
+.duckmage-hex-icon {
+	position: absolute;
+	width: 78%;
+	height: 78%;
+	object-fit: contain;
+	pointer-events: none;
+	opacity: 0.75;
+}
+
 .duckmage-hex-label {
-	font-size: 0.65em;
+	position: relative; /* above icon */
+	font-size: 0.6em;
 	font-weight: 600;
 	color: var(--text-muted);
 	pointer-events: none;
 	user-select: none;
+	z-index: 1;
+}
+
+/* Keep label readable over terrain color */
+.duckmage-hex[style*="background-color"] .duckmage-hex-label {
+	text-shadow: 0 0 3px var(--background-primary), 0 0 6px var(--background-primary);
 }
 
 .duckmage-hex-dot {
@@ -72,14 +100,205 @@
 	border-radius: 50%;
 	background: var(--interactive-accent);
 	pointer-events: none;
+	z-index: 1;
 }
 
-/* Terrain-colored hex: keep label readable (text shadow if needed) */
-.duckmage-hex[style*="background-color"] .duckmage-hex-label {
-	text-shadow: 0 0 2px var(--background-primary), 0 0 4px var(--background-primary);
+/* ── Hex editor modal ─────────────────────────────────────────────────────── */
+
+.duckmage-hex-editor h2 {
+	margin-bottom: 0.75em;
 }
 
-/* Settings: terrain palette list */
+.duckmage-hex-editor h3 {
+	margin: 0.25em 0 0.5em;
+}
+
+.duckmage-hex-editor h4 {
+	margin: 0;
+	font-size: 0.9em;
+	font-weight: 600;
+}
+
+.duckmage-editor-divider {
+	margin: 1em 0;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.duckmage-editor-section {
+	margin-bottom: 1em;
+}
+
+/* Terrain picker grid */
+.duckmage-terrain-picker {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4em;
+	margin-bottom: 0.75em;
+}
+
+.duckmage-terrain-option {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.25em;
+	padding: 0.35em;
+	border-radius: 6px;
+	cursor: pointer;
+	border: 2px solid transparent;
+	background: var(--background-secondary);
+	transition: border-color 0.1s ease, background 0.1s ease;
+	min-width: 52px;
+}
+
+.duckmage-terrain-option:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.duckmage-terrain-option.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.duckmage-terrain-preview {
+	width: 36px;
+	height: 36px;
+	border-radius: 4px;
+	position: relative;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.duckmage-terrain-preview-icon {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.duckmage-terrain-option-name {
+	font-size: 0.7em;
+	text-align: center;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 54px;
+}
+
+.duckmage-clear-btn {
+	margin-top: 0.5em;
+}
+
+/* Link sections */
+.duckmage-editor-link-section {
+	margin-bottom: 0.85em;
+}
+
+.duckmage-link-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.3em;
+}
+
+.duckmage-add-btn {
+	font-size: 0.8em;
+	padding: 0.15em 0.5em;
+}
+
+.duckmage-link-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	padding-left: 0.5em;
+}
+
+.duckmage-link-item {
+	font-size: 0.85em;
+	color: var(--text-accent);
+}
+
+.duckmage-link-empty {
+	font-size: 0.85em;
+	color: var(--text-faint);
+}
+
+.duckmage-suggestion-path {
+	color: var(--text-muted);
+}
+
+/* ── Expand buttons ───────────────────────────────────────────────────────── */
+
+.duckmage-expand-btn {
+	position: absolute;
+	z-index: 10;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border-radius: 50%;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 1.1em;
+	line-height: 1;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.5;
+	transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.duckmage-expand-btn:hover {
+	opacity: 1;
+	color: var(--text-normal);
+}
+
+.duckmage-expand-top    { top: 4px;    left: 50%; transform: translateX(-50%); }
+.duckmage-expand-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); }
+.duckmage-expand-left   { left: 4px;   top: 50%;  transform: translateY(-50%); }
+.duckmage-expand-right  { right: 4px;  top: 50%;  transform: translateY(-50%); }
+
+/* Text note sections */
+.duckmage-editor-text-section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25em;
+	margin-bottom: 0.85em;
+}
+
+.duckmage-text-section-label {
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.duckmage-text-section-textarea {
+	width: 100%;
+	resize: vertical;
+	font-size: 0.9em;
+	font-family: var(--font-text);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 0.4em 0.5em;
+	color: var(--text-normal);
+	line-height: 1.5;
+	box-sizing: border-box;
+}
+
+.duckmage-text-section-textarea:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+/* ── Settings: terrain palette ────────────────────────────────────────────── */
+
 .duckmage-palette-list .duckmage-palette-item {
 	margin-bottom: 0.5em;
 }
