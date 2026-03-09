@@ -17,6 +17,11 @@ export interface DuckmagePluginSettings {
 	gridSize: { cols: number; rows: number };
 	gridOffset: { x: number; y: number };
 	zoomLevel: number;
+	roadChains: string[][];
+	riverChains: string[][];
+	roadColor: string;
+	riverColor: string;
+	hexOrientation: "pointy" | "flat";
 }
 
 export const LINK_SECTIONS = ["Towns", "Dungeons", "Features"] as const;

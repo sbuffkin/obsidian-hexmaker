@@ -13,7 +13,7 @@ export class HexEditorModal extends Modal {
 		private plugin: DuckmagePlugin,
 		private x: number,
 		private y: number,
-		private onChanged: (overrides?: Map<string, string | null>) => void,
+		private onChanged: (terrainOverrides?: Map<string, string | null>, iconOverrides?: Map<string, string | null>) => void,
 	) {
 		super(app);
 	}
@@ -79,19 +79,18 @@ export class HexEditorModal extends Modal {
 			});
 		}
 
+		// Icon override + inline Clear terrain
+		const iconRow = section.createDiv({ cls: "duckmage-icon-override-row" });
+		iconRow.createSpan({ text: "Icon override", cls: "duckmage-icon-override-label" });
+		const iconSelect = iconRow.createEl("select", { cls: "duckmage-icon-override-select" });
 		if (currentTerrain) {
-			const clearBtn = section.createEl("button", { text: "Clear terrain", cls: "duckmage-clear-btn mod-warning" });
+			const clearBtn = iconRow.createEl("button", { text: "Clear terrain", cls: "duckmage-clear-btn mod-warning" });
 			clearBtn.addEventListener("click", async () => {
 				await setTerrainInFile(this.app, path, null);
 				this.onChanged(new Map([[path, null]]));
 				this.close();
 			});
 		}
-
-		// Icon override
-		const iconRow = section.createDiv({ cls: "duckmage-icon-override-row" });
-		iconRow.createSpan({ text: "Icon override", cls: "duckmage-icon-override-label" });
-		const iconSelect = iconRow.createEl("select", { cls: "duckmage-icon-override-select" });
 		iconSelect.createEl("option", { value: "", text: "— use terrain default —" });
 		for (const icon of this.plugin.availableIcons) {
 			const label = icon.replace(/^bw-/, "").replace(/\.png$/, "").replace(/-/g, " ");
@@ -101,7 +100,7 @@ export class HexEditorModal extends Modal {
 		iconSelect.addEventListener("change", async () => {
 			await this.ensureHexNote();
 			await setIconOverrideInFile(this.app, path, iconSelect.value || null);
-			this.onChanged();
+			this.onChanged(undefined, new Map([[path, iconSelect.value || null]]));
 		});
 	}
 

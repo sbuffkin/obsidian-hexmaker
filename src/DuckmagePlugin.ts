@@ -35,6 +35,11 @@ export default class DuckmagePlugin extends Plugin {
 		const data = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 		if (!this.settings.gridOffset) this.settings.gridOffset = { x: 0, y: 0 };
+		if (!Array.isArray(this.settings.roadChains))  this.settings.roadChains  = [];
+		if (!Array.isArray(this.settings.riverChains)) this.settings.riverChains = [];
+		if (!this.settings.roadColor)  this.settings.roadColor  = "#a16207";
+		if (!this.settings.riverColor) this.settings.riverColor = "#3b82f6";
+		if (!this.settings.hexOrientation) this.settings.hexOrientation = "pointy";
 		if (!Array.isArray(this.settings.terrainPalette) || this.settings.terrainPalette.length === 0) {
 			this.settings.terrainPalette = [...DEFAULT_TERRAIN_PALETTE];
 		} else {

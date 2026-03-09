@@ -23,6 +23,8 @@
 	cursor: grabbing;
 }
 
+/* ── Pointy-top row layout ────────────────────────────────────────────────── */
+
 .duckmage-hex-row {
 	display: flex;
 	flex-wrap: nowrap;
@@ -33,6 +35,33 @@
 .duckmage-hex-row-offset {
 	margin-left: calc(var(--hex-size, 2.2em) * 1.732 / 2);
 }
+
+/* ── Flat-top column layout ───────────────────────────────────────────────── */
+
+.duckmage-grid-flat {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+}
+
+.duckmage-hex-col {
+	display: flex;
+	flex-direction: column;
+	margin-right: calc(var(--hex-size, 2.2em) * -0.5);
+}
+
+.duckmage-hex-col-offset {
+	margin-top: calc(var(--hex-size, 2.2em) * 0.866);
+}
+
+/* Flat-top hex shape and dimensions */
+.duckmage-grid-flat .duckmage-hex {
+	width: calc(var(--hex-size) * 2);
+	height: calc(var(--hex-size) * 1.732);
+	clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+/* ── Hex cell (shared) ────────────────────────────────────────────────────── */
 
 .duckmage-hex {
 	--hex-size: 2.2em;
@@ -139,6 +168,10 @@
 	overflow-y: auto;
 	padding-right: 2px; /* avoid clipping scrollbar */
 }
+.duckmage-terrain-picker.duckmage-terrain-picker-full {
+	max-height: none;
+	overflow-y: visible;
+}
 
 .duckmage-terrain-option {
 	display: flex;
@@ -171,6 +204,15 @@
 	position: relative;
 	overflow: hidden;
 	flex-shrink: 0;
+}
+.duckmage-terrain-preview-clear {
+	background: repeating-linear-gradient(
+		45deg,
+		var(--background-modifier-border) 0px,
+		var(--background-modifier-border) 2px,
+		var(--background-secondary) 2px,
+		var(--background-secondary) 8px
+	);
 }
 
 .duckmage-terrain-preview-icon {
@@ -247,6 +289,64 @@
 
 .duckmage-suggestion-path {
 	color: var(--text-muted);
+}
+
+/* ── Roads & Rivers toolbar ───────────────────────────────────────────────── */
+
+.duckmage-draw-toolbar {
+	position: absolute;
+	top: 8px;
+	right: 44px;
+	z-index: 10;
+	display: flex;
+	gap: 4px;
+}
+
+.duckmage-draw-btn {
+	height: 26px;
+	padding: 0 10px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 0.75em;
+	font-weight: 600;
+	cursor: pointer;
+	opacity: 0.6;
+	transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+	user-select: none;
+}
+
+.duckmage-draw-btn:hover {
+	opacity: 1;
+	color: var(--text-normal);
+}
+
+.duckmage-draw-btn.is-active {
+	opacity: 1;
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.duckmage-draw-btn-terrain {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.duckmage-terrain-btn-preview {
+	display: none;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	flex-shrink: 0;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.duckmage-hex-map-viewport.duckmage-draw-mode,
+.duckmage-hex-map-viewport.duckmage-draw-mode .duckmage-hex {
+	cursor: crosshair;
 }
 
 /* ── Expand buttons ───────────────────────────────────────────────────────── */

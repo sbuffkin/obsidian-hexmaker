@@ -66,4 +66,9 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
 	gridSize: { cols: 20, rows: 16 },
 	gridOffset: { x: 0, y: 0 },
 	zoomLevel: 1,
+	roadChains: [],
+	riverChains: [],
+	roadColor: "#a16207",
+	riverColor: "#3b82f6",
+	hexOrientation: "pointy",
 };

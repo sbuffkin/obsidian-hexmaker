@@ -80,6 +80,20 @@ export class DuckmageSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Hex orientation")
+			.setDesc("Pointy-top: points face north/south, flat sides east/west. Flat-top: flat sides face north/south, points east/west.")
+			.addDropdown(dropdown =>
+				dropdown
+					.addOption("pointy", "Pointy-top")
+					.addOption("flat", "Flat-top")
+					.setValue(this.plugin.settings.hexOrientation ?? "pointy")
+					.onChange(async value => {
+						this.plugin.settings.hexOrientation = value as "pointy" | "flat";
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
 			.setName("Grid width")
 			.setDesc("Number of hex columns.")
 			.addText(text =>
@@ -129,6 +143,30 @@ export class DuckmageSettingTab extends PluginSettingTab {
 						this.plugin.settings.iconsFolder = normalizeFolder(value ?? "");
 						await this.plugin.saveSettings();
 						await this.plugin.loadAvailableIcons();
+					}),
+			);
+
+		containerEl.createEl("h3", { text: "Roads & Rivers" });
+		new Setting(containerEl)
+			.setName("Road color")
+			.setDesc("Color used to draw road lines between connected road hexes.")
+			.addColorPicker(color =>
+				color
+					.setValue(this.plugin.settings.roadColor ?? "#a16207")
+					.onChange(async value => {
+						this.plugin.settings.roadColor = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+		new Setting(containerEl)
+			.setName("River color")
+			.setDesc("Color used to draw river lines between connected river hexes.")
+			.addColorPicker(color =>
+				color
+					.setValue(this.plugin.settings.riverColor ?? "#3b82f6")
+					.onChange(async value => {
+						this.plugin.settings.riverColor = value;
+						await this.plugin.saveSettings();
 					}),
 			);
 

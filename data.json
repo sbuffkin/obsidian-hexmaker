@@ -4,17 +4,22 @@
   "hexFolder": "RPG/duckmage/hexes",
   "townsFolder": "RPG/duckmage/world/towns",
   "dungeonsFolder": "RPG/duckmage/world/dungeons",
+  "iconsFolder": "",
   "templatePath": "RPG/duckmage/world/hextemplate.md",
   "hexGap": "0.15",
   "terrainPalette": [
     {
       "name": "mountain",
-      "color": "#6e7b91",
+      "color": "#a77649",
       "icon": "bw-mountain.png"
     },
     {
       "name": "water",
       "color": "#17375e"
+    },
+    {
+      "name": "shallows",
+      "color": "#5892b6"
     },
     {
       "name": "grass",
@@ -33,8 +38,7 @@
     },
     {
       "name": "desert",
-      "color": "#c6b47b",
-      "icon": "bw-cactus.png"
+      "color": "#c6b47b"
     },
     {
       "name": "snow",
@@ -52,17 +56,17 @@
     },
     {
       "name": "dunes",
-      "color": "#fbbf24",
+      "color": "#eccd7e",
       "icon": "bw-dunes.png"
     },
     {
       "name": "cactus",
-      "color": "#ca8a04",
+      "color": "#e2b75a",
       "icon": "bw-cactus.png"
     },
     {
       "name": "cactus heavy",
-      "color": "#b45309",
+      "color": "#ddb869",
       "icon": "bw-cactus-heavy.png"
     },
     {
@@ -204,15 +208,118 @@
       "name": "danger",
       "color": "#432e6b",
       "icon": "bw-swamp.png"
+    },
+    {
+      "name": "urban",
+      "color": "#888888"
+    },
+    {
+      "name": "beach",
+      "color": "#cac181",
+      "icon": "bw-grassland.png"
     }
   ],
   "gridSize": {
-    "cols": 26,
-    "rows": 17
+    "cols": 28,
+    "rows": 19
   },
   "gridOffset": {
-    "x": -1,
-    "y": -1
+    "x": -3,
+    "y": -3
   },
-  "zoomLevel": 1
+  "zoomLevel": 1,
+  "roadChains": [
+    [
+      "10_8"
+    ],
+    [
+      "10_6"
+    ],
+    [
+      "12_1",
+      "12_2",
+      "12_3",
+      "12_4",
+      "11_4",
+      "10_5",
+      "10_6"
+    ],
+    [
+      "14_7",
+      "14_6",
+      "13_5",
+      "12_5",
+      "11_5",
+      "11_4",
+      "10_3",
+      "11_2"
+    ]
+  ],
+  "riverChains": [
+    [
+      "12_7",
+      "12_8",
+      "11_9"
+    ],
+    [
+      "10_7"
+    ],
+    [
+      "18_2"
+    ],
+    [
+      "12_6"
+    ],
+    [
+      "15_2"
+    ],
+    [
+      "17_3"
+    ],
+    [
+      "13_5"
+    ],
+    [
+      "17_8"
+    ],
+    [
+      "17_2"
+    ],
+    [
+      "15_5",
+      "14_5",
+      "14_6",
+      "13_7",
+      "12_7"
+    ]
+  ],
+  "roadColor": "#a16207",
+  "riverColor": "#3b82f6",
+  "hexOrientation": "flat",
+  "roadHexes": [
+    "8_4",
+    "12_1",
+    "11_4",
+    "8_1",
+    "13_1",
+    "12_2",
+    "11_3",
+    "10_5",
+    "11_6",
+    "11_7",
+    "10_7",
+    "12_6",
+    "12_7",
+    "12_8",
+    "11_8"
+  ],
+  "riverHexes": [
+    "16_1",
+    "16_2",
+    "15_3",
+    "14_3",
+    "15_4",
+    "14_4",
+    "11_7"
+  ]
 }
