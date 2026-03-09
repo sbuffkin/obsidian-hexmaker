@@ -5,7 +5,7 @@ import { getTerrainFromFile, getIconOverrideFromFile, setTerrainInFile, setIconO
 import { HexEditorModal } from "./HexEditorModal";
 import { TerrainPickerModal } from "./TerrainPickerModal";
 import { IconPickerModal } from "./IconPickerModal";
-import { VIEW_TYPE_HEX_MAP } from "./constants";
+import { VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE } from "./constants";
 
 export class HexMapView extends ItemView {
 	plugin: DuckmagePlugin;
@@ -158,6 +158,16 @@ export class HexMapView extends ItemView {
 
 		this.createExpandButtons(controlsEl);
 		this.createDrawingToolbar(controlsEl);
+
+		const tableBtn = controlsEl.createEl("button", {
+			cls: "duckmage-table-btn",
+			title: "Open hex table",
+			text: "⊞",
+		});
+		tableBtn.addEventListener("click", () => {
+			this.app.workspace.getLeaf("tab").setViewState({ type: VIEW_TYPE_HEX_TABLE });
+		});
+
 		this.renderGrid();
 	}
 

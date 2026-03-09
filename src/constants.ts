@@ -1,6 +1,7 @@
 import type { TerrainColor, DuckmagePluginSettings } from "./types";
 
-export const VIEW_TYPE_HEX_MAP = "duckmage-hex-map";
+export const VIEW_TYPE_HEX_MAP   = "duckmage-hex-map";
+export const VIEW_TYPE_HEX_TABLE = "duckmage-hex-table";
 
 export const DEFAULT_TERRAIN_PALETTE: TerrainColor[] = [
 	// Open

@@ -1,0 +1,573 @@
+import { App, ItemView, Modal, TFile, WorkspaceLeaf } from "obsidian";
+import type DuckmagePlugin from "./DuckmagePlugin";
+import { VIEW_TYPE_HEX_TABLE } from "./constants";
+import { getAllSectionData, setSectionContent } from "./sections";
+import { getTerrainFromFile } from "./frontmatter";
+import { normalizeFolder } from "./utils";
+import type { TerrainColor } from "./types";
+
+// Column definitions in template order
+const COLUMNS: { key: string; label: string; isLink: boolean }[] = [
+	{ key: "description",    label: "Description",    isLink: false },
+	{ key: "landmark",       label: "Landmark",       isLink: false },
+	{ key: "towns",          label: "Towns",          isLink: true  },
+	{ key: "dungeons",       label: "Dungeons",       isLink: true  },
+	{ key: "features",       label: "Features",       isLink: true  },
+	{ key: "hidden",         label: "Hidden",         isLink: false },
+	{ key: "secret",         label: "Secret",         isLink: false },
+	{ key: "encounters",     label: "Encounters",     isLink: false },
+	{ key: "weather",        label: "Weather",        isLink: false },
+	{ key: "hooks & rumors", label: "Hooks & Rumors", isLink: false },
+];
+
+const TRUNCATE_LEN = 120;
+const HEX_PATTERN = /^(?:.*\/)?(-?\d+)_(-?\d+)\.md$/;
+
+// ── Terrain filter modal ────────────────────────────────────────────────────
+
+class TerrainFilterModal extends Modal {
+	constructor(
+		app: App,
+		private palette: TerrainColor[],
+		private selected: Set<string>,
+		private onChange: (selected: Set<string>) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText("Filter by Terrain");
+		const { contentEl } = this;
+		contentEl.addClass("duckmage-terrain-filter-modal");
+
+		const list = contentEl.createDiv({ cls: "duckmage-terrain-filter-list" });
+		for (const entry of this.palette) {
+			// Checkbox inside label — clicking anywhere on the row toggles it
+			const lbl = list.createEl("label", { cls: "duckmage-terrain-filter-row" });
+			const cb = lbl.createEl("input") as HTMLInputElement;
+			cb.type = "checkbox";
+			cb.checked = this.selected.has(entry.name);
+			cb.addEventListener("change", () => {
+				if (cb.checked) this.selected.add(entry.name);
+				else this.selected.delete(entry.name);
+				this.onChange(new Set(this.selected));
+			});
+			const swatch = lbl.createSpan({ cls: "duckmage-hex-table-swatch" });
+			swatch.style.backgroundColor = entry.color;
+			lbl.appendText(entry.name);
+		}
+
+		const btnRow = contentEl.createDiv({ cls: "duckmage-terrain-filter-btns" });
+		const clearBtn = btnRow.createEl("button", { text: "Clear all" });
+		clearBtn.addEventListener("click", () => {
+			this.selected.clear();
+			this.onChange(new Set(this.selected));
+			// Uncheck all visible checkboxes
+			contentEl.querySelectorAll<HTMLInputElement>("input[type=checkbox]")
+				.forEach(cb => { cb.checked = false; });
+		});
+		btnRow.createEl("button", { text: "Done", cls: "mod-cta" })
+			.addEventListener("click", () => this.close());
+	}
+
+	onClose(): void { this.contentEl.empty(); }
+}
+
+// ── Cell detail / edit modal ────────────────────────────────────────────────
+
+class HexCellModal extends Modal {
+	constructor(
+		app: App,
+		private title: string,
+		private body: string,
+		private isLink: boolean,
+		private filePath?: string,
+		private sectionKey?: string,
+		private onSave?: (newContent: string) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText(this.title);
+		const { contentEl } = this;
+		contentEl.addClass("duckmage-cell-modal");
+
+		if (this.isLink) {
+			const list = contentEl.createEl("ul", { cls: "duckmage-cell-modal-list" });
+			for (const item of this.body.split(", ")) {
+				list.createEl("li", { text: item });
+			}
+		} else {
+			const textarea = contentEl.createEl("textarea", { cls: "duckmage-cell-modal-textarea" });
+			textarea.value = this.body;
+
+			const saveBtn = contentEl.createEl("button", {
+				text: "Save",
+				cls: "duckmage-cell-modal-save mod-cta",
+			});
+			saveBtn.addEventListener("click", async () => {
+				const newContent = textarea.value;
+				if (this.filePath && this.sectionKey) {
+					await setSectionContent(this.app, this.filePath, this.sectionKey, newContent);
+					this.onSave?.(newContent.trim());
+				}
+				this.close();
+			});
+		}
+	}
+
+	onClose(): void { this.contentEl.empty(); }
+}
+
+// ── Main view ───────────────────────────────────────────────────────────────
+
+export class HexTableView extends ItemView {
+	private scrollEl: HTMLElement | null = null;
+	private updateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	// Filter state
+	private filterXMin: number | null = null;
+	private filterXMax: number | null = null;
+	private filterYMin: number | null = null;
+	private filterYMax: number | null = null;
+	private filterTerrains = new Set<string>();
+	private filterHasTown = false;
+	private filterHasDungeon = false;
+
+	// Filter UI elements (created once in onOpen)
+	private filterXMinInput: HTMLInputElement | null = null;
+	private filterXMaxInput: HTMLInputElement | null = null;
+	private filterYMinInput: HTMLInputElement | null = null;
+	private filterYMaxInput: HTMLInputElement | null = null;
+	private terrainFilterBtn: HTMLButtonElement | null = null;
+	private townCb: HTMLInputElement | null = null;
+	private dungeonCb: HTMLInputElement | null = null;
+
+	constructor(leaf: WorkspaceLeaf, private plugin: DuckmagePlugin) {
+		super(leaf);
+	}
+
+	getViewType():    string { return VIEW_TYPE_HEX_TABLE; }
+	getDisplayText(): string { return "Hex table"; }
+
+	async onOpen(): Promise<void> {
+		const { contentEl } = this;
+		contentEl.addClass("duckmage-hex-table-container");
+
+		// ── Toolbar ──────────────────────────────────────────────────────────
+		const toolbar = contentEl.createDiv({ cls: "duckmage-hex-table-toolbar" });
+
+		const refreshBtn = toolbar.createEl("button", { text: "Refresh", cls: "duckmage-filter-btn" });
+		refreshBtn.addEventListener("click", () => void this.loadTable());
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
+		// X range filter
+		toolbar.createSpan({ text: "X:", cls: "duckmage-filter-label" });
+		this.filterXMinInput = toolbar.createEl("input", { cls: "duckmage-filter-range-input" }) as HTMLInputElement;
+		this.filterXMinInput.type = "number";
+		this.filterXMinInput.placeholder = "min";
+		this.filterXMinInput.addEventListener("input", () => {
+			const v = this.filterXMinInput!.value;
+			this.filterXMin = v !== "" ? Number(v) : null;
+			this.applyFilters();
+		});
+		toolbar.createSpan({ text: "–", cls: "duckmage-filter-label" });
+		this.filterXMaxInput = toolbar.createEl("input", { cls: "duckmage-filter-range-input" }) as HTMLInputElement;
+		this.filterXMaxInput.type = "number";
+		this.filterXMaxInput.placeholder = "max";
+		this.filterXMaxInput.addEventListener("input", () => {
+			const v = this.filterXMaxInput!.value;
+			this.filterXMax = v !== "" ? Number(v) : null;
+			this.applyFilters();
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
+		// Y range filter
+		toolbar.createSpan({ text: "Y:", cls: "duckmage-filter-label" });
+		this.filterYMinInput = toolbar.createEl("input", { cls: "duckmage-filter-range-input" }) as HTMLInputElement;
+		this.filterYMinInput.type = "number";
+		this.filterYMinInput.placeholder = "min";
+		this.filterYMinInput.addEventListener("input", () => {
+			const v = this.filterYMinInput!.value;
+			this.filterYMin = v !== "" ? Number(v) : null;
+			this.applyFilters();
+		});
+		toolbar.createSpan({ text: "–", cls: "duckmage-filter-label" });
+		this.filterYMaxInput = toolbar.createEl("input", { cls: "duckmage-filter-range-input" }) as HTMLInputElement;
+		this.filterYMaxInput.type = "number";
+		this.filterYMaxInput.placeholder = "max";
+		this.filterYMaxInput.addEventListener("input", () => {
+			const v = this.filterYMaxInput!.value;
+			this.filterYMax = v !== "" ? Number(v) : null;
+			this.applyFilters();
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
+		// Terrain multi-select filter
+		this.terrainFilterBtn = toolbar.createEl("button", {
+			text: "Terrain: All",
+			cls: "duckmage-filter-btn",
+		});
+		this.terrainFilterBtn.addEventListener("click", () => {
+			const palette = this.plugin.settings.terrainPalette ?? [];
+			new TerrainFilterModal(this.app, palette, new Set(this.filterTerrains), (selected) => {
+				this.filterTerrains = selected;
+				this.updateTerrainBtnLabel();
+				this.applyFilters();
+			}).open();
+			// Note: onChange fires live as checkboxes are toggled inside the modal
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
+		// Has Town checkbox
+		const townLabel = toolbar.createEl("label", { cls: "duckmage-filter-check-label" });
+		this.townCb = townLabel.createEl("input") as HTMLInputElement;
+		this.townCb.type = "checkbox";
+		townLabel.appendText(" Has Town");
+		this.townCb.addEventListener("change", () => {
+			this.filterHasTown = this.townCb!.checked;
+			this.applyFilters();
+		});
+
+		// Has Dungeon checkbox
+		const dungeonLabel = toolbar.createEl("label", { cls: "duckmage-filter-check-label" });
+		this.dungeonCb = dungeonLabel.createEl("input") as HTMLInputElement;
+		this.dungeonCb.type = "checkbox";
+		dungeonLabel.appendText(" Has Dungeon");
+		this.dungeonCb.addEventListener("change", () => {
+			this.filterHasDungeon = this.dungeonCb!.checked;
+			this.applyFilters();
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
+		// Clear all filters
+		const clearBtn = toolbar.createEl("button", { text: "Clear filters", cls: "duckmage-filter-btn" });
+		clearBtn.addEventListener("click", () => this.clearFilters());
+
+		// ── Scroll area ───────────────────────────────────────────────────────
+		this.scrollEl = contentEl.createDiv({ cls: "duckmage-hex-table-scroll" });
+		this.scrollEl.createSpan({ text: "Loading…", cls: "duckmage-hex-table-empty" });
+
+		// ── Vault event listeners ─────────────────────────────────────────────
+		this.registerEvent(this.app.vault.on("modify", (file) => {
+			if (!(file instanceof TFile)) return;
+			const folder = normalizeFolder(this.plugin.settings.hexFolder);
+			if (folder && !file.path.startsWith(folder + "/")) return;
+			if (!HEX_PATTERN.test(file.path)) return;
+
+			const existing = this.updateTimers.get(file.path);
+			if (existing) clearTimeout(existing);
+			this.updateTimers.set(file.path, setTimeout(() => {
+				this.updateTimers.delete(file.path);
+				void this.updateRow(file.path);
+			}, 300));
+		}));
+
+		this.registerEvent(this.app.vault.on("create", (file) => {
+			if (!(file instanceof TFile)) return;
+			const folder = normalizeFolder(this.plugin.settings.hexFolder);
+			if (folder && !file.path.startsWith(folder + "/")) return;
+			if (!HEX_PATTERN.test(file.path)) return;
+			void this.loadTable();
+		}));
+
+		void this.loadTable();
+	}
+
+	async onClose(): Promise<void> {
+		for (const timer of this.updateTimers.values()) clearTimeout(timer);
+		this.updateTimers.clear();
+		this.contentEl.empty();
+	}
+
+	async loadTable(): Promise<void> {
+		if (!this.scrollEl) return;
+		this.scrollEl.empty();
+		this.scrollEl.createSpan({ text: "Loading…", cls: "duckmage-hex-table-empty" });
+
+		const folder = normalizeFolder(this.plugin.settings.hexFolder);
+		let files: { path: string; x: number; y: number }[] = [];
+
+		try {
+			const listing = await this.app.vault.adapter.list(folder || "/");
+			for (const filePath of listing.files) {
+				const m = HEX_PATTERN.exec(filePath);
+				if (m) files.push({ path: filePath, x: Number(m[1]), y: Number(m[2]) });
+			}
+		} catch {
+			this.scrollEl.empty();
+			this.scrollEl.createSpan({ text: "Could not read hex folder.", cls: "duckmage-hex-table-empty" });
+			return;
+		}
+
+		files.sort((a, b) => a.x !== b.x ? a.x - b.x : a.y - b.y);
+
+		if (files.length === 0) {
+			this.scrollEl.empty();
+			this.scrollEl.createSpan({ text: "No hex notes found.", cls: "duckmage-hex-table-empty" });
+			return;
+		}
+
+		// Update X/Y input placeholders with actual data bounds
+		const xs = files.map(f => f.x);
+		const ys = files.map(f => f.y);
+		if (this.filterXMinInput) this.filterXMinInput.placeholder = String(Math.min(...xs));
+		if (this.filterXMaxInput) this.filterXMaxInput.placeholder = String(Math.max(...xs));
+		if (this.filterYMinInput) this.filterYMinInput.placeholder = String(Math.min(...ys));
+		if (this.filterYMaxInput) this.filterYMaxInput.placeholder = String(Math.max(...ys));
+
+		// Read all section data in parallel
+		const sectionData = await Promise.all(
+			files.map(f => getAllSectionData(this.app, f.path)),
+		);
+
+		// Build table
+		const table = document.createElement("table");
+		table.className = "duckmage-hex-table";
+
+		const thead = table.createEl("thead");
+		const headerRow = thead.createEl("tr");
+		headerRow.createEl("th", { text: "Hex" });
+		headerRow.createEl("th", { text: "Terrain" });
+		for (const col of COLUMNS) {
+			headerRow.createEl("th", { text: col.label });
+		}
+
+		const tbody = table.createEl("tbody");
+		for (let i = 0; i < files.length; i++) {
+			const { path, x, y } = files[i];
+			const { text, links } = sectionData[i];
+			const tr = tbody.createEl("tr");
+			tr.dataset.hexPath = path;
+			this.fillRow(tr, path, x, y, text, links);
+		}
+
+		this.scrollEl.empty();
+		this.scrollEl.appendChild(table);
+		this.addColumnResizers(table);
+		this.applyFilters();
+	}
+
+	// ── Filter helpers ────────────────────────────────────────────────────────
+
+
+	private updateTerrainBtnLabel(): void {
+		if (!this.terrainFilterBtn) return;
+		const count = this.filterTerrains.size;
+		this.terrainFilterBtn.setText(count === 0 ? "Terrain: All" : `Terrain: ${count} selected`);
+		this.terrainFilterBtn.toggleClass("duckmage-filter-active", count > 0);
+	}
+
+	private clearFilters(): void {
+		this.filterXMin = null;
+		this.filterXMax = null;
+		this.filterYMin = null;
+		this.filterYMax = null;
+		this.filterTerrains = new Set();
+		this.filterHasTown = false;
+		this.filterHasDungeon = false;
+
+		if (this.filterXMinInput) this.filterXMinInput.value = "";
+		if (this.filterXMaxInput) this.filterXMaxInput.value = "";
+		if (this.filterYMinInput) this.filterYMinInput.value = "";
+		if (this.filterYMaxInput) this.filterYMaxInput.value = "";
+		if (this.townCb)    this.townCb.checked = false;
+		if (this.dungeonCb) this.dungeonCb.checked = false;
+		this.updateTerrainBtnLabel();
+		this.applyFilters();
+	}
+
+	private applyFilters(): void {
+		if (!this.scrollEl) return;
+		const tbody = this.scrollEl.querySelector("tbody");
+		if (!tbody) return;
+
+		for (const tr of Array.from(tbody.rows)) {
+			const x = Number(tr.dataset.hexX);
+			const y = Number(tr.dataset.hexY);
+			const terrain = tr.dataset.terrain ?? "";
+			const hasTown    = tr.dataset.hasTown    === "1";
+			const hasDungeon = tr.dataset.hasDungeon === "1";
+
+			let show = true;
+			if (this.filterXMin !== null && x < this.filterXMin) show = false;
+			if (this.filterXMax !== null && x > this.filterXMax) show = false;
+			if (this.filterYMin !== null && y < this.filterYMin) show = false;
+			if (this.filterYMax !== null && y > this.filterYMax) show = false;
+			if (this.filterTerrains.size > 0 && !this.filterTerrains.has(terrain)) show = false;
+			if (this.filterHasTown    && !hasTown)    show = false;
+			if (this.filterHasDungeon && !hasDungeon) show = false;
+
+			tr.classList.toggle("duckmage-row-hidden", !show);
+		}
+	}
+
+	// ── Row rendering ─────────────────────────────────────────────────────────
+
+	private fillRow(
+		tr: HTMLTableRowElement,
+		path: string,
+		x: number,
+		y: number,
+		text: Map<string, string>,
+		links: Map<string, string[]>,
+	): void {
+		tr.empty();
+
+		const palette = this.plugin.settings.terrainPalette ?? [];
+		const terrainName = getTerrainFromFile(this.app, path);
+		const terrainEntry = terrainName ? palette.find(p => p.name === terrainName) : undefined;
+
+		const hasTown    = (links.get("towns")    ?? []).length > 0;
+		const hasDungeon = (links.get("dungeons") ?? []).length > 0;
+
+		// Store filter-relevant data on the row
+		tr.dataset.hexX      = String(x);
+		tr.dataset.hexY      = String(y);
+		tr.dataset.terrain   = terrainName ?? "";
+		tr.dataset.hasTown    = hasTown    ? "1" : "0";
+		tr.dataset.hasDungeon = hasDungeon ? "1" : "0";
+
+		// Coords cell — click to open note
+		const coordsTd = tr.createEl("td");
+		const coordsSpan = coordsTd.createSpan({
+			text: `${x},${y}`,
+			cls: "duckmage-hex-table-coords",
+		});
+		coordsSpan.addEventListener("click", () => {
+			const file = this.app.vault.getAbstractFileByPath(path);
+			if (file instanceof TFile) {
+				void this.app.workspace.getLeaf(false).openFile(file);
+			}
+		});
+
+		// Terrain cell
+		const terrainTd = tr.createEl("td");
+		if (terrainEntry) {
+			const swatch = terrainTd.createSpan({ cls: "duckmage-hex-table-swatch" });
+			swatch.style.backgroundColor = terrainEntry.color;
+			terrainTd.appendText(terrainEntry.name);
+		} else {
+			terrainTd.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
+		}
+
+		// Section cells
+		for (const col of COLUMNS) {
+			const td = tr.createEl("td");
+			if (col.isLink) {
+				const linkList = links.get(col.key) ?? [];
+				if (linkList.length > 0) {
+					const full = linkList.join(", ");
+					td.dataset.fullContent = full;
+					td.setText(full);
+					td.addClass("duckmage-hex-table-cell-clickable");
+					td.addEventListener("click", () => {
+						const current = td.dataset.fullContent ?? "";
+						new HexCellModal(this.app, `${x},${y} — ${col.label}`, current, true).open();
+					});
+				} else {
+					td.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
+				}
+			} else {
+				const content = text.get(col.key) ?? "";
+				if (content) {
+					td.dataset.fullContent = content;
+					const display = content.length > TRUNCATE_LEN
+						? content.slice(0, TRUNCATE_LEN) + "…"
+						: content;
+					td.setText(display);
+					td.addClass("duckmage-hex-table-cell-clickable");
+					td.addEventListener("click", () => {
+						const current = td.dataset.fullContent ?? "";
+						new HexCellModal(
+							this.app, `${x},${y} — ${col.label}`, current, false,
+							path, col.key,
+							(saved) => {
+								td.dataset.fullContent = saved;
+								if (saved) {
+									const newDisplay = saved.length > TRUNCATE_LEN
+										? saved.slice(0, TRUNCATE_LEN) + "…"
+										: saved;
+									td.setText(newDisplay);
+								} else {
+									td.empty();
+									td.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
+									td.removeClass("duckmage-hex-table-cell-clickable");
+								}
+							},
+						).open();
+					});
+				} else {
+					td.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
+				}
+			}
+		}
+	}
+
+	// ── Column resizing ───────────────────────────────────────────────────────
+
+	private addColumnResizers(table: HTMLTableElement): void {
+		const ths = Array.from(table.querySelectorAll<HTMLTableCellElement>("thead th"));
+
+		// Default widths (px): Hex, Terrain, then one per COLUMN entry
+		const defaultWidths = [60, 110, 220, 160, 150, 150, 150, 160, 160, 160, 140, 190];
+
+		const colgroup = document.createElement("colgroup");
+		for (let i = 0; i < ths.length; i++) {
+			const col = document.createElement("col");
+			col.style.width = `${defaultWidths[i] ?? 160}px`;
+			colgroup.appendChild(col);
+		}
+		table.insertBefore(colgroup, table.firstChild);
+
+		const cols = Array.from(colgroup.children) as HTMLTableColElement[];
+
+		for (let i = 0; i < ths.length; i++) {
+			const th = ths[i];
+			const col = cols[i];
+
+			const handle = th.createDiv({ cls: "duckmage-col-resizer" });
+			handle.addEventListener("mousedown", (e: MouseEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const startX  = e.clientX;
+				const startW  = th.getBoundingClientRect().width;
+				document.body.style.cursor = "col-resize";
+
+				const onMove = (me: MouseEvent) => {
+					col.style.width = `${Math.max(40, startW + me.clientX - startX)}px`;
+				};
+				const onUp = () => {
+					document.body.style.cursor = "";
+					document.removeEventListener("mousemove", onMove);
+					document.removeEventListener("mouseup",   onUp);
+				};
+				document.addEventListener("mousemove", onMove);
+				document.addEventListener("mouseup",   onUp);
+			});
+		}
+	}
+
+	private async updateRow(path: string): Promise<void> {
+		if (!this.scrollEl) return;
+		const tr = this.scrollEl.querySelector<HTMLTableRowElement>(
+			`tr[data-hex-path="${CSS.escape(path)}"]`,
+		);
+		if (!tr) return;
+
+		const m = HEX_PATTERN.exec(path);
+		if (!m) return;
+		const x = Number(m[1]);
+		const y = Number(m[2]);
+
+		const { text, links } = await getAllSectionData(this.app, path);
+		this.fillRow(tr, path, x, y, text, links);
+		this.applyFilters();
+	}
+}

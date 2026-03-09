@@ -1,7 +1,8 @@
 import { Notice, Plugin, TFile } from "obsidian";
 import { HexMapView } from "./HexMapView";
+import { HexTableView } from "./HexTableView";
 import { DuckmageSettingTab } from "./DuckmageSettingTab";
-import { DEFAULT_SETTINGS, DEFAULT_TERRAIN_PALETTE, VIEW_TYPE_HEX_MAP } from "./constants";
+import { DEFAULT_SETTINGS, DEFAULT_TERRAIN_PALETTE, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE } from "./constants";
 import { normalizeFolder } from "./utils";
 import type { DuckmagePluginSettings } from "./types";
 import DEFAULT_HEX_TEMPLATE from "./defaultHexTemplate.md";
@@ -15,12 +16,18 @@ export default class DuckmagePlugin extends Plugin {
 		await this.loadSettings();
 		await this.loadAvailableIcons();
 
-		this.registerView(VIEW_TYPE_HEX_MAP, (leaf) => new HexMapView(leaf, this));
+		this.registerView(VIEW_TYPE_HEX_MAP,   (leaf) => new HexMapView(leaf, this));
+		this.registerView(VIEW_TYPE_HEX_TABLE, (leaf) => new HexTableView(leaf, this));
 		this.addRibbonIcon("map", "Duckmage: Open hex map", () => this.openHexMap());
 		this.addCommand({
 			id: "open-hex-map",
 			name: "Open Duckmage hex map",
 			callback: () => this.openHexMap(),
+		});
+		this.addCommand({
+			id: "open-hex-table",
+			name: "Open Duckmage hex table",
+			callback: () => this.app.workspace.getLeaf(false).setViewState({ type: VIEW_TYPE_HEX_TABLE }),
 		});
 		this.addSettingTab(new DuckmageSettingTab(this.app, this));
 	}

@@ -404,6 +404,30 @@
 .duckmage-expand-left   { left: 4px;   top: 50%;  transform: translateY(-50%); }
 .duckmage-expand-right  { right: 4px;  top: 50%;  transform: translateY(-50%); }
 
+.duckmage-table-btn {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	z-index: 10;
+	height: 26px;
+	padding: 0 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 1em;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0.6;
+	transition: opacity 0.15s ease, color 0.15s ease;
+	user-select: none;
+}
+
+.duckmage-table-btn:hover {
+	opacity: 1;
+	color: var(--text-normal);
+}
+
 /* Text note sections */
 .duckmage-editor-text-section {
 	display: flex;
@@ -562,4 +586,264 @@
 .duckmage-palette-item.duckmage-palette-drop-target {
 	outline: 2px dashed var(--interactive-accent);
 	border-radius: 4px;
+}
+
+/* ── Hex table view ───────────────────────────────────────────────────────── */
+
+.duckmage-hex-table-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+.duckmage-hex-table-toolbar {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px 6px;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.duckmage-filter-separator {
+	width: 1px;
+	height: 18px;
+	background: var(--background-modifier-border);
+	flex-shrink: 0;
+}
+
+.duckmage-filter-label {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.duckmage-filter-range-input {
+	height: 24px;
+	width: 54px;
+	padding: 0 4px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	font-size: 0.8em;
+	text-align: center;
+}
+
+.duckmage-filter-range-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+/* Hide browser spin buttons on the range inputs */
+.duckmage-filter-range-input::-webkit-inner-spin-button,
+.duckmage-filter-range-input::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+}
+
+.duckmage-filter-btn {
+	height: 24px;
+	padding: 0 8px;
+	border-radius: 4px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: 0.8em;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.duckmage-filter-btn:hover {
+	color: var(--text-normal);
+	border-color: var(--background-modifier-border-hover);
+}
+
+.duckmage-filter-btn.duckmage-filter-active {
+	border-color: var(--interactive-accent);
+	color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.duckmage-filter-check-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.duckmage-filter-check-label:hover {
+	color: var(--text-normal);
+}
+
+.duckmage-hex-table-scroll {
+	flex: 1;
+	overflow: auto;
+}
+
+.duckmage-hex-table {
+	border-collapse: collapse;
+	table-layout: fixed;
+	font-size: 0.85em;
+}
+
+.duckmage-hex-table th {
+	position: sticky;
+	top: 0;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	padding: 4px 8px;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	z-index: 2;
+}
+
+.duckmage-hex-table td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 3px 8px;
+	vertical-align: top;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--text-normal);
+}
+
+.duckmage-col-resizer {
+	position: absolute;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	width: 5px;
+	cursor: col-resize;
+	z-index: 3;
+}
+
+.duckmage-col-resizer:hover,
+.duckmage-col-resizer:active {
+	background: var(--interactive-accent);
+	opacity: 0.5;
+}
+
+.duckmage-hex-table tr:hover td {
+	background: var(--background-modifier-hover);
+}
+
+.duckmage-hex-table-coords {
+	color: var(--text-accent);
+	cursor: pointer;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.duckmage-hex-table-coords:hover {
+	text-decoration: underline;
+}
+
+.duckmage-hex-table-swatch {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	margin-right: 4px;
+	vertical-align: middle;
+	flex-shrink: 0;
+}
+
+.duckmage-hex-table-empty {
+	color: var(--text-faint);
+}
+
+.duckmage-hex-table-cell-clickable {
+	cursor: pointer;
+}
+
+.duckmage-hex-table-cell-clickable:hover {
+	color: var(--text-accent);
+}
+
+/* ── Hex cell detail modal ────────────────────────────────────────────────── */
+
+.duckmage-cell-modal {
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.duckmage-cell-modal-pre {
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--font-text);
+	font-size: var(--font-ui-medium);
+	line-height: 1.6;
+	margin: 0;
+}
+
+.duckmage-cell-modal-list {
+	margin: 0;
+	padding-left: 1.5em;
+	line-height: 1.8;
+}
+
+.duckmage-cell-modal-textarea {
+	width: 100%;
+	min-height: 200px;
+	resize: vertical;
+	font-family: var(--font-text);
+	font-size: var(--font-ui-medium);
+	line-height: 1.6;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 0.5em;
+	color: var(--text-normal);
+	box-sizing: border-box;
+	display: block;
+	margin-bottom: 0.75em;
+}
+
+.duckmage-cell-modal-textarea:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.duckmage-cell-modal-save {
+	display: block;
+	margin-left: auto;
+}
+
+/* ── Terrain filter modal ─────────────────────────────────────────────────── */
+
+.duckmage-terrain-filter-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 1em;
+}
+
+.duckmage-terrain-filter-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+}
+
+.duckmage-terrain-filter-row input[type="checkbox"] {
+	flex-shrink: 0;
+	cursor: pointer;
+}
+
+.duckmage-row-hidden {
+	display: none !important;
+}
+
+.duckmage-terrain-filter-btns {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 4px;
+	border-top: 1px solid var(--background-modifier-border);
 }
