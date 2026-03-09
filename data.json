@@ -28,7 +28,7 @@
     },
     {
       "name": "forest",
-      "color": "#0a431f",
+      "color": "#2d9553",
       "icon": "bw-forest-heavy.png"
     },
     {
@@ -38,7 +38,7 @@
     },
     {
       "name": "desert",
-      "color": "#c6b47b"
+      "color": "#ecdba2"
     },
     {
       "name": "snow",
@@ -46,7 +46,7 @@
     },
     {
       "name": "hills",
-      "color": "#a8a29e",
+      "color": "#e0e8a1",
       "icon": "bw-hills.png"
     },
     {
@@ -106,17 +106,17 @@
     },
     {
       "name": "evergreen",
-      "color": "#166534",
+      "color": "#428a5e",
       "icon": "bw-evergreen.png"
     },
     {
       "name": "evergreen heavy",
-      "color": "#14532d",
+      "color": "#257445",
       "icon": "bw-evergreen-heavy.png"
     },
     {
       "name": "evergreen hills",
-      "color": "#4ade80",
+      "color": "#328651",
       "icon": "bw-evergreen-hills.png"
     },
     {
@@ -166,12 +166,12 @@
     },
     {
       "name": "evergreen mountain",
-      "color": "#6b7280",
+      "color": "#6b806b",
       "icon": "bw-evergreen-mountain.png"
     },
     {
       "name": "evergreen mountains",
-      "color": "#4b5563",
+      "color": "#8c9d80",
       "icon": "bw-evergreen-mountains.png"
     },
     {
@@ -236,29 +236,41 @@
       "10_6"
     ],
     [
-      "12_1",
-      "12_2",
-      "12_3",
-      "12_4",
-      "11_4",
-      "10_5",
+      "12_4"
+    ],
+    [
       "10_6"
     ],
     [
-      "14_7",
-      "14_6",
-      "13_5",
-      "12_5",
-      "11_5",
-      "11_4",
-      "10_3",
-      "11_2"
+      "14_6"
+    ],
+    [
+      "10_3"
+    ],
+    [
+      "13_1"
+    ],
+    [
+      "16_-2"
+    ],
+    [
+      "6_6",
+      "5_6",
+      "4_7",
+      "3_7",
+      "2_7",
+      "1_6",
+      "1_5",
+      "1_4",
+      "1_3"
+    ],
+    [
+      "1_1",
+      "1_2"
     ]
   ],
   "riverChains": [
     [
-      "12_7",
-      "12_8",
       "11_9"
     ],
     [
@@ -286,11 +298,19 @@
       "17_2"
     ],
     [
-      "15_5",
-      "14_5",
-      "14_6",
-      "13_7",
+      "15_5"
+    ],
+    [
+      "14_6"
+    ],
+    [
       "12_7"
+    ],
+    [
+      "12_9"
+    ],
+    [
+      "11_8"
     ]
   ],
   "roadColor": "#a16207",

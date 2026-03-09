@@ -233,6 +233,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					color.setValue(entry.color).onChange(async value => {
 						entry.color = value;
 						await this.plugin.saveSettings();
+						this.plugin.refreshHexMap();
 					}),
 				)
 				.addDropdown(dropdown => {
@@ -245,6 +246,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					dropdown.onChange(async value => {
 						entry.icon = value || undefined;
 						await this.plugin.saveSettings();
+						this.plugin.refreshHexMap();
 					});
 				})
 				.addExtraButton(btn =>

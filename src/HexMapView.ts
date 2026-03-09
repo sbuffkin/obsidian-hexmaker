@@ -1,9 +1,10 @@
 import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
 import type DuckmagePlugin from "./DuckmagePlugin";
 import { normalizeFolder, getIconUrl } from "./utils";
-import { getTerrainFromFile, getIconOverrideFromFile, setTerrainInFile } from "./frontmatter";
+import { getTerrainFromFile, getIconOverrideFromFile, setTerrainInFile, setIconOverrideInFile } from "./frontmatter";
 import { HexEditorModal } from "./HexEditorModal";
 import { TerrainPickerModal } from "./TerrainPickerModal";
+import { IconPickerModal } from "./IconPickerModal";
 import { VIEW_TYPE_HEX_MAP } from "./constants";
 
 export class HexMapView extends ItemView {
@@ -12,15 +13,23 @@ export class HexMapView extends ItemView {
 	private panX = 0;
 	private panY = 0;
 	private viewportEl: HTMLElement | null = null;
-	private drawingMode: "road" | "river" | "terrain" | null = null;
+	private drawingMode: "road" | "river" | "terrain" | "icon" | null = null;
 	private roadToolbarBtn: HTMLButtonElement | null = null;
 	private riverToolbarBtn: HTMLButtonElement | null = null;
 	private terrainToolbarBtn: HTMLButtonElement | null = null;
 	private terrainBtnPreview: HTMLSpanElement | null = null;
+	private iconToolbarBtn: HTMLButtonElement | null = null;
+	private iconBtnPreview: HTMLImageElement | null = null;
 	// The last-clicked hex key in each drawing mode — the next click extends from here
 	private activeRoadEnd: string | null = null;
 	private activeRiverEnd: string | null = null;
 	private paintTerrainName: string | null = null;
+	private paintIconName: string | null = null;
+	// Per-hex write queues: always stores the *latest* desired value so rapid
+	// repaints of the same hex coalesce into at most one queued write.
+	private pendingTerrainWrites = new Map<string, { x: number; y: number; terrain: string | null }>();
+	private pendingIconWrites    = new Map<string, { x: number; y: number; icon: string | null }>();
+	private flushing             = new Set<string>(); // "t:<path>" or "i:<path>"
 
 	constructor(leaf: WorkspaceLeaf, plugin: DuckmagePlugin) {
 		super(leaf);
@@ -34,7 +43,11 @@ export class HexMapView extends ItemView {
 		const { contentEl } = this;
 		contentEl.addClass("duckmage-hex-map-container");
 
-		this.viewportEl = contentEl.createDiv({ cls: "duckmage-hex-map-viewport" });
+		// clipEl clips the panning viewport; controlsEl overlays buttons without clipping
+		const clipEl = contentEl.createDiv({ cls: "duckmage-hex-map-clip" });
+		const controlsEl = contentEl.createDiv({ cls: "duckmage-hex-map-controls" });
+
+		this.viewportEl = clipEl.createDiv({ cls: "duckmage-hex-map-viewport" });
 		this.applyTransform();
 
 		// ── Zoom (scroll wheel, no modifier required) ──────────────────────────
@@ -60,7 +73,7 @@ export class HexMapView extends ItemView {
 
 		this.registerDomEvent(contentEl, "mousedown", (e: MouseEvent) => {
 			if (e.button !== 0) return;
-			if (this.drawingMode === "terrain") {
+			if (this.drawingMode === "terrain" || this.drawingMode === "icon") {
 				isTerrainPainting = true;
 				lastPaintedKey = null;
 				// Paint the hex under the cursor immediately
@@ -69,7 +82,8 @@ export class HexMapView extends ItemView {
 					const x = Number(hexEl.dataset.x);
 					const y = Number(hexEl.dataset.y);
 					lastPaintedKey = `${x}_${y}`;
-					this.onHexPaintClick(x, y);
+					if (this.drawingMode === "terrain") this.onHexPaintClick(x, y);
+					else this.onHexIconClick(x, y);
 					hasDragged = true; // suppress the subsequent click event
 				}
 				return; // skip pan setup
@@ -93,7 +107,8 @@ export class HexMapView extends ItemView {
 					const key = `${x}_${y}`;
 					if (key !== lastPaintedKey) {
 						lastPaintedKey = key;
-						this.onHexPaintClick(x, y);
+						if (this.drawingMode === "terrain") this.onHexPaintClick(x, y);
+						else if (this.drawingMode === "icon") this.onHexIconClick(x, y);
 					}
 				}
 				return;
@@ -121,16 +136,28 @@ export class HexMapView extends ItemView {
 			if (hasDragged) { e.stopPropagation(); hasDragged = false; }
 		}, { capture: true } as AddEventListenerOptions);
 
-		// Right-click anywhere exits terrain mode (before hex contextmenu fires)
+		// Right-click anywhere exits terrain/icon mode (before hex contextmenu fires)
 		this.registerDomEvent(contentEl, "contextmenu", (e: MouseEvent) => {
-			if (this.drawingMode !== "terrain") return;
+			if (this.drawingMode !== "terrain" && this.drawingMode !== "icon") return;
 			e.preventDefault();
 			e.stopPropagation();
-			this.exitTerrainMode();
+			if (this.drawingMode === "terrain") this.exitTerrainMode();
+			else this.exitIconMode();
 		}, { capture: true } as AddEventListenerOptions);
 
-		this.createExpandButtons(contentEl);
-		this.createDrawingToolbar(contentEl);
+		// Clicking off the hex grid (but inside the viewport) exits terrain/icon mode
+		this.registerDomEvent(contentEl, "click", (e: MouseEvent) => {
+			if (this.drawingMode !== "terrain" && this.drawingMode !== "icon") return;
+			const inViewport = (e.target as HTMLElement).closest(".duckmage-hex-map-viewport");
+			const onHex     = (e.target as HTMLElement).closest(".duckmage-hex");
+			if (inViewport && !onHex) {
+				if (this.drawingMode === "terrain") this.exitTerrainMode();
+				else this.exitIconMode();
+			}
+		});
+
+		this.createExpandButtons(controlsEl);
+		this.createDrawingToolbar(controlsEl);
 		this.renderGrid();
 	}
 
@@ -184,14 +211,19 @@ export class HexMapView extends ItemView {
 		this.terrainToolbarBtn = toolbar.createEl("button", { cls: "duckmage-draw-btn duckmage-draw-btn-terrain" });
 		this.terrainToolbarBtn.createSpan({ text: "Terrain" });
 		this.terrainBtnPreview = this.terrainToolbarBtn.createSpan({ cls: "duckmage-terrain-btn-preview" });
+		this.iconToolbarBtn = toolbar.createEl("button", { cls: "duckmage-draw-btn duckmage-draw-btn-terrain" });
+		this.iconToolbarBtn.createSpan({ text: "Icon" });
+		this.iconBtnPreview = this.iconToolbarBtn.createEl("img", { cls: "duckmage-icon-btn-preview" });
 		this.roadToolbarBtn.addEventListener("click",    () => this.setDrawingMode("road"));
 		this.riverToolbarBtn.addEventListener("click",   () => this.setDrawingMode("river"));
 		this.terrainToolbarBtn.addEventListener("click", () => this.handleTerrainButton());
+		this.iconToolbarBtn.addEventListener("click",    () => this.handleIconButton());
 	}
 
 	private setDrawingMode(mode: "road" | "river"): void {
 		this.drawingMode = this.drawingMode === mode ? null : mode;
 		this.paintTerrainName = null;
+		this.paintIconName = null;
 		this.updateToolbarButtonStates();
 		this.updateRoadRiverOverlay(); // refresh active-end marker visibility
 	}
@@ -201,6 +233,7 @@ export class HexMapView extends ItemView {
 		new TerrainPickerModal(this.app, this.plugin, (terrainName: string | null) => {
 			this.drawingMode = "terrain";
 			this.paintTerrainName = terrainName;
+			this.paintIconName = null;
 			this.updateToolbarButtonStates();
 		}).open();
 	}
@@ -212,11 +245,38 @@ export class HexMapView extends ItemView {
 		this.updateToolbarButtonStates();
 	}
 
+	private handleIconButton(): void {
+		new IconPickerModal(this.app, this.plugin, (iconName: string | null) => {
+			this.drawingMode = "icon";
+			this.paintIconName = iconName;
+			this.paintTerrainName = null;
+			this.updateToolbarButtonStates();
+		}).open();
+	}
+
+	private exitIconMode(): void {
+		if (this.drawingMode !== "icon") return;
+		this.drawingMode = null;
+		this.paintIconName = null;
+		this.updateToolbarButtonStates();
+	}
+
 	private updateToolbarButtonStates(): void {
 		this.roadToolbarBtn?.toggleClass("is-active", this.drawingMode === "road");
 		this.riverToolbarBtn?.toggleClass("is-active", this.drawingMode === "river");
 		this.terrainToolbarBtn?.toggleClass("is-active", this.drawingMode === "terrain");
+		this.iconToolbarBtn?.toggleClass("is-active", this.drawingMode === "icon");
 		this.viewportEl?.toggleClass("duckmage-draw-mode", this.drawingMode !== null);
+
+		// Icon button preview
+		if (this.drawingMode === "icon" && this.paintIconName) {
+			if (this.iconBtnPreview) {
+				this.iconBtnPreview.src = getIconUrl(this.plugin, this.paintIconName);
+				this.iconBtnPreview.style.display = "inline-block";
+			}
+		} else {
+			if (this.iconBtnPreview) this.iconBtnPreview.style.display = "none";
+		}
 		if (this.drawingMode === "terrain") {
 			const entry = this.paintTerrainName
 				? this.plugin.settings.terrainPalette.find(p => p.name === this.paintTerrainName)
@@ -336,6 +396,10 @@ export class HexMapView extends ItemView {
 
 	private onHexContextMenu(evt: MouseEvent, x: number, y: number): void {
 		evt.preventDefault();
+		if (this.drawingMode === "road" || this.drawingMode === "river") {
+			this.onHexDeleteClick(x, y);
+			return;
+		}
 		new HexEditorModal(this.app, this.plugin, x, y, (t, i) => this.renderGrid(t, i)).open();
 	}
 
@@ -345,7 +409,11 @@ export class HexMapView extends ItemView {
 			return;
 		}
 		if (this.drawingMode === "terrain") {
-			await this.onHexPaintClick(x, y);
+			this.onHexPaintClick(x, y);
+			return;
+		}
+		if (this.drawingMode === "icon") {
+			this.onHexIconClick(x, y);
 			return;
 		}
 
@@ -362,22 +430,138 @@ export class HexMapView extends ItemView {
 		await this.app.workspace.getLeaf(false).openFile(fileToOpen);
 	}
 
-	private async onHexPaintClick(x: number, y: number): Promise<void> {
+	private onHexPaintClick(x: number, y: number): void {
 		if (this.drawingMode !== "terrain") return;
+		const terrain = this.paintTerrainName;
 		const path = this.plugin.hexPath(x, y);
-		if (this.paintTerrainName === null) {
-			// Clear mode — only act if the hex note exists
-			if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) return;
-			await setTerrainInFile(this.app, path, null);
-			this.renderGrid(new Map([[path, null]]));
-			return;
+		const palette = this.plugin.settings.terrainPalette ?? [];
+		const entry = terrain != null ? palette.find(p => p.name === terrain) : undefined;
+
+		// ── Immediate visual update — no waiting for file I/O ─────────────────
+		const hexEl = this.viewportEl?.querySelector<HTMLElement>(`[data-x="${x}"][data-y="${y}"]`);
+		if (hexEl) {
+			hexEl.style.backgroundColor = entry?.color ?? "";
+			hexEl.querySelector(".duckmage-hex-icon")?.remove();
+			hexEl.querySelector(".duckmage-hex-dot")?.remove();
+			if (entry?.icon) {
+				const img = hexEl.createEl("img", { cls: "duckmage-hex-icon" });
+				img.src = getIconUrl(this.plugin, entry.icon);
+				img.alt = entry.name;
+				hexEl.insertBefore(img, hexEl.querySelector(".duckmage-hex-label"));
+			}
+			if (terrain !== null) hexEl.addClass("duckmage-hex-exists");
 		}
-		if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
-			const created = await this.plugin.createHexNote(x, y);
-			if (!created) return;
+
+		// ── Queue background file write (coalescing per-hex) ──────────────────
+		this.scheduleTerrainWrite(x, y, path, terrain);
+	}
+
+	private onHexIconClick(x: number, y: number): void {
+		if (this.drawingMode !== "icon") return;
+		const icon = this.paintIconName;
+		const path = this.plugin.hexPath(x, y);
+
+		// ── Immediate visual update ────────────────────────────────────────────
+		const hexEl = this.viewportEl?.querySelector<HTMLElement>(`[data-x="${x}"][data-y="${y}"]`);
+		if (hexEl) {
+			hexEl.querySelector(".duckmage-hex-icon")?.remove();
+			if (icon) {
+				const img = hexEl.createEl("img", { cls: "duckmage-hex-icon" });
+				img.src = getIconUrl(this.plugin, icon);
+				img.alt = icon;
+				hexEl.insertBefore(img, hexEl.querySelector(".duckmage-hex-label"));
+			}
+			if (icon !== null) hexEl.addClass("duckmage-hex-exists");
 		}
-		await setTerrainInFile(this.app, path, this.paintTerrainName);
-		this.renderGrid(new Map([[path, this.paintTerrainName]]));
+
+		// ── Queue background file write (coalescing per-hex) ──────────────────
+		this.scheduleIconWrite(x, y, path, icon);
+	}
+
+	// ── Per-hex coalescing write queues ────────────────────────────────────────
+	//
+	// Only the *latest* painted value is ever queued per hex. If the user repaints
+	// hex A five times while the first write is in-flight, we perform exactly two
+	// writes: the in-flight one and then the final value. No writes are lost; no
+	// stale intermediate value can overwrite a newer one.
+
+	private scheduleTerrainWrite(x: number, y: number, path: string, terrain: string | null): void {
+		this.pendingTerrainWrites.set(path, { x, y, terrain });
+		if (!this.flushing.has(`t:${path}`)) void this.flushTerrainWrites(path);
+	}
+
+	private async flushTerrainWrites(path: string): Promise<void> {
+		const key = `t:${path}`;
+		this.flushing.add(key);
+		try {
+			while (this.pendingTerrainWrites.has(path)) {
+				const { x, y, terrain } = this.pendingTerrainWrites.get(path)!;
+				this.pendingTerrainWrites.delete(path);
+				try {
+					if (terrain === null) {
+						if (this.app.vault.getAbstractFileByPath(path) instanceof TFile)
+							await setTerrainInFile(this.app, path, null);
+					} else {
+						if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+							if (!(await this.plugin.createHexNote(x, y))) {
+								// Note creation failed — reconcile visual with disk state
+								this.renderGrid();
+								return;
+							}
+							this.viewportEl
+								?.querySelector<HTMLElement>(`[data-x="${x}"][data-y="${y}"]`)
+								?.addClass("duckmage-hex-exists");
+						}
+						await setTerrainInFile(this.app, path, terrain);
+					}
+				} catch (err) {
+					console.error(`[duckmage] terrain write failed for ${path}:`, err);
+					this.renderGrid(); // reconcile visual with disk state
+					return;
+				}
+			}
+		} finally {
+			this.flushing.delete(key);
+		}
+	}
+
+	private scheduleIconWrite(x: number, y: number, path: string, icon: string | null): void {
+		this.pendingIconWrites.set(path, { x, y, icon });
+		if (!this.flushing.has(`i:${path}`)) void this.flushIconWrites(path);
+	}
+
+	private async flushIconWrites(path: string): Promise<void> {
+		const key = `i:${path}`;
+		this.flushing.add(key);
+		try {
+			while (this.pendingIconWrites.has(path)) {
+				const { x, y, icon } = this.pendingIconWrites.get(path)!;
+				this.pendingIconWrites.delete(path);
+				try {
+					if (icon === null) {
+						if (this.app.vault.getAbstractFileByPath(path) instanceof TFile)
+							await setIconOverrideInFile(this.app, path, null);
+					} else {
+						if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+							if (!(await this.plugin.createHexNote(x, y))) {
+								this.renderGrid();
+								return;
+							}
+							this.viewportEl
+								?.querySelector<HTMLElement>(`[data-x="${x}"][data-y="${y}"]`)
+								?.addClass("duckmage-hex-exists");
+						}
+						await setIconOverrideInFile(this.app, path, icon);
+					}
+				} catch (err) {
+					console.error(`[duckmage] icon write failed for ${path}:`, err);
+					this.renderGrid();
+					return;
+				}
+			}
+		} finally {
+			this.flushing.delete(key);
+		}
 	}
 
 	private async onHexDrawClick(x: number, y: number): Promise<void> {
@@ -386,15 +570,12 @@ export class HexMapView extends ItemView {
 			? this.plugin.settings.roadChains
 			: this.plugin.settings.riverChains;
 
-		// ── If adjacent to active end, always extend (chains may overlap) ──────
+		// ── If adjacent to active end, extend that chain ─────────────────────
 		const activeEnd = this.drawingMode === "road" ? this.activeRoadEnd : this.activeRiverEnd;
-
 		if (activeEnd !== null) {
 			const [ax, ay] = activeEnd.split("_").map(Number);
 			const isAdjacent = this.hexNeighbors(ax, ay).some(([nx, ny]) => nx === x && ny === y);
-
 			if (isAdjacent) {
-				// Find the chain whose last node is activeEnd and append
 				for (const chain of chains) {
 					if (chain[chain.length - 1] === activeEnd) {
 						chain.push(key);
@@ -408,7 +589,20 @@ export class HexMapView extends ItemView {
 			}
 		}
 
-		// ── Not an extension — delete one node from the first matching chain ───
+		// ── Not adjacent — start a new chain from this hex ───────────────────
+		chains.push([key]);
+		if (this.drawingMode === "road") this.activeRoadEnd = key;
+		else this.activeRiverEnd = key;
+		await this.plugin.saveSettings();
+		this.updateRoadRiverOverlay();
+	}
+
+	private async onHexDeleteClick(x: number, y: number): Promise<void> {
+		const key = `${x}_${y}`;
+		const chains = this.drawingMode === "road"
+			? this.plugin.settings.roadChains
+			: this.plugin.settings.riverChains;
+
 		for (let ci = 0; ci < chains.length; ci++) {
 			const pos = chains[ci].indexOf(key);
 			if (pos === -1) continue;
@@ -421,11 +615,9 @@ export class HexMapView extends ItemView {
 			} else if (pos === chain.length - 1) {
 				chain.splice(pos, 1);
 			} else {
-				// Split chain at this position
 				chains.splice(ci, 1, chain.slice(0, pos), chain.slice(pos + 1));
 			}
 
-			// Clear active end if it was this hex
 			if (this.drawingMode === "road" && this.activeRoadEnd === key) this.activeRoadEnd = null;
 			if (this.drawingMode === "river" && this.activeRiverEnd === key) this.activeRiverEnd = null;
 
@@ -433,13 +625,6 @@ export class HexMapView extends ItemView {
 			this.updateRoadRiverOverlay();
 			return;
 		}
-
-		// ── No existing chain — start a new one ────────────────────────────────
-		chains.push([key]);
-		if (this.drawingMode === "road") this.activeRoadEnd = key;
-		else this.activeRiverEnd = key;
-		await this.plugin.saveSettings();
-		this.updateRoadRiverOverlay();
 	}
 
 	private hexNeighbors(x: number, y: number): [number, number][] {

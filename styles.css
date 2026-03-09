@@ -3,10 +3,28 @@
 /* ── Hex map view ─────────────────────────────────────────────────────────── */
 
 .duckmage-hex-map-container {
-	overflow: hidden;
 	position: relative;
 	width: 100%;
 	height: 100%;
+}
+
+/* Clips the panning/zooming viewport without affecting control buttons */
+.duckmage-hex-map-clip {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+
+/* Transparent overlay for expand & toolbar buttons — no overflow clipping */
+.duckmage-hex-map-controls {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 20;
+}
+
+.duckmage-hex-map-controls > * {
+	pointer-events: auto;
 }
 
 .duckmage-hex-map-viewport {
@@ -116,9 +134,14 @@
 	z-index: 1;
 }
 
-/* Keep label readable over terrain color */
+/* Outline keeps coordinates readable over any terrain color */
 .duckmage-hex[style*="background-color"] .duckmage-hex-label {
-	text-shadow: 0 0 3px var(--background-primary), 0 0 6px var(--background-primary);
+	color: #fff;
+	text-shadow:
+		-1px -1px 0 rgba(0,0,0,0.85),
+		 1px -1px 0 rgba(0,0,0,0.85),
+		-1px  1px 0 rgba(0,0,0,0.85),
+		 1px  1px 0 rgba(0,0,0,0.85);
 }
 
 .duckmage-hex-dot {
@@ -414,6 +437,85 @@
 .duckmage-text-section-textarea:focus {
 	outline: none;
 	border-color: var(--interactive-accent);
+}
+
+/* ── Icon picker modal ────────────────────────────────────────────────────── */
+
+.duckmage-icon-picker {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4em;
+	margin-bottom: 0.75em;
+	max-height: 420px;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.duckmage-icon-option {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.25em;
+	padding: 0.35em;
+	border-radius: 6px;
+	cursor: pointer;
+	border: 2px solid transparent;
+	background: var(--background-secondary);
+	transition: border-color 0.1s ease, background 0.1s ease;
+	min-width: 52px;
+}
+
+.duckmage-icon-option:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+}
+
+.duckmage-icon-preview {
+	width: 36px;
+	height: 36px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	flex-shrink: 0;
+	background: var(--background-primary-alt);
+}
+
+.duckmage-icon-preview-clear {
+	background: repeating-linear-gradient(
+		45deg,
+		var(--background-modifier-border) 0px,
+		var(--background-modifier-border) 2px,
+		var(--background-secondary) 2px,
+		var(--background-secondary) 8px
+	);
+}
+
+.duckmage-icon-preview-img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	opacity: 0.85;
+}
+
+.duckmage-icon-option-name {
+	font-size: 0.7em;
+	text-align: center;
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 54px;
+}
+
+.duckmage-icon-btn-preview {
+	display: none;
+	width: 14px;
+	height: 14px;
+	object-fit: contain;
+	flex-shrink: 0;
+	opacity: 0.9;
 }
 
 /* ── Modal: icon override ─────────────────────────────────────────────────── */

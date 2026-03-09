@@ -57,6 +57,12 @@ export default class DuckmagePlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
+	refreshHexMap(): void {
+		this.app.workspace.getLeavesOfType(VIEW_TYPE_HEX_MAP).forEach(leaf => {
+			(leaf.view as HexMapView).renderGrid();
+		});
+	}
+
 	async loadAvailableIcons() {
 		this.vaultIconsSet = new Set();
 		const pluginIcons: string[] = [];
