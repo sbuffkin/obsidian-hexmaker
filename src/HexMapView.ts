@@ -20,9 +20,11 @@ export class HexMapView extends ItemView {
 	private terrainBtnPreview: HTMLSpanElement | null = null;
 	private iconToolbarBtn: HTMLButtonElement | null = null;
 	private iconBtnPreview: HTMLImageElement | null = null;
-	// The last-clicked hex key in each drawing mode — the next click extends from here
+	// The last-clicked hex key and the specific chain being extended
 	private activeRoadEnd: string | null = null;
 	private activeRiverEnd: string | null = null;
+	private activeRoadChain: string[] | null = null;
+	private activeRiverChain: string[] | null = null;
 	private paintTerrainName: string | null = null;
 	private paintIconName: string | null = null;
 	// Per-hex write queues: always stores the *latest* desired value so rapid
@@ -579,30 +581,37 @@ export class HexMapView extends ItemView {
 		const chains = this.drawingMode === "road"
 			? this.plugin.settings.roadChains
 			: this.plugin.settings.riverChains;
+		const activeEnd   = this.drawingMode === "road" ? this.activeRoadEnd   : this.activeRiverEnd;
+		const activeChain = this.drawingMode === "road" ? this.activeRoadChain : this.activeRiverChain;
 
 		// ── If adjacent to active end, extend that chain ─────────────────────
-		const activeEnd = this.drawingMode === "road" ? this.activeRoadEnd : this.activeRiverEnd;
 		if (activeEnd !== null) {
 			const [ax, ay] = activeEnd.split("_").map(Number);
 			const isAdjacent = this.hexNeighbors(ax, ay).some(([nx, ny]) => nx === x && ny === y);
 			if (isAdjacent) {
-				for (const chain of chains) {
-					if (chain[chain.length - 1] === activeEnd) {
-						chain.push(key);
-						if (this.drawingMode === "road") this.activeRoadEnd = key;
-						else this.activeRiverEnd = key;
-						await this.plugin.saveSettings();
-						this.updateRoadRiverOverlay();
-						return;
-					}
+				// Prefer tracked reference; fall back to last-element scan
+				let target: string[] | undefined;
+				if (activeChain !== null && activeChain[activeChain.length - 1] === activeEnd) {
+					target = activeChain;
+				} else {
+					target = chains.find(c => c[c.length - 1] === activeEnd);
+				}
+				if (target) {
+					target.push(key);
+					if (this.drawingMode === "road") { this.activeRoadEnd = key; this.activeRoadChain = target; }
+					else { this.activeRiverEnd = key; this.activeRiverChain = target; }
+					await this.plugin.saveSettings();
+					this.updateRoadRiverOverlay();
+					return;
 				}
 			}
 		}
 
-		// ── Not adjacent — start a new chain from this hex ───────────────────
-		chains.push([key]);
-		if (this.drawingMode === "road") this.activeRoadEnd = key;
-		else this.activeRiverEnd = key;
+		// ── Not adjacent (or no active chain) — start a new chain ────────────
+		const newChain = [key];
+		chains.push(newChain);
+		if (this.drawingMode === "road") { this.activeRoadEnd = key;   this.activeRoadChain  = newChain; }
+		else                             { this.activeRiverEnd = key;  this.activeRiverChain = newChain; }
 		await this.plugin.saveSettings();
 		this.updateRoadRiverOverlay();
 	}
@@ -618,18 +627,33 @@ export class HexMapView extends ItemView {
 			if (pos === -1) continue;
 
 			const chain = chains[ci];
+			const activeChain = this.drawingMode === "road" ? this.activeRoadChain : this.activeRiverChain;
+			const isActiveChain = chain === activeChain;
+
 			if (chain.length === 1) {
 				chains.splice(ci, 1);
+				if (isActiveChain) {
+					if (this.drawingMode === "road") this.activeRoadChain = null;
+					else this.activeRiverChain = null;
+				}
 			} else if (pos === 0) {
-				chain.splice(0, 1);
+				chain.splice(0, 1); // in-place; reference stays valid
 			} else if (pos === chain.length - 1) {
-				chain.splice(pos, 1);
+				chain.splice(pos, 1); // in-place; reference stays valid
 			} else {
 				chains.splice(ci, 1, chain.slice(0, pos), chain.slice(pos + 1));
+				if (isActiveChain) {
+					if (this.drawingMode === "road") this.activeRoadChain = null;
+					else this.activeRiverChain = null;
+				}
 			}
 
-			if (this.drawingMode === "road" && this.activeRoadEnd === key) this.activeRoadEnd = null;
-			if (this.drawingMode === "river" && this.activeRiverEnd === key) this.activeRiverEnd = null;
+			if (this.drawingMode === "road" && this.activeRoadEnd === key) {
+				this.activeRoadEnd = null; this.activeRoadChain = null;
+			}
+			if (this.drawingMode === "river" && this.activeRiverEnd === key) {
+				this.activeRiverEnd = null; this.activeRiverChain = null;
+			}
 
 			await this.plugin.saveSettings();
 			this.updateRoadRiverOverlay();
@@ -721,17 +745,21 @@ export class HexMapView extends ItemView {
 			}
 		};
 
-		// Rivers: newer chains truncate at the first hex already drawn by an
-		// older chain, so tributaries visually end on top of the main river.
+		// Rivers: draw each chain, truncating where it meets an already-drawn
+		// chain (tributary merges into main river). Chains that begin at an
+		// already-drawn hex are drawn from the last contiguous drawn hex
+		// outward, so a branch that starts mid-river still renders correctly.
 		const drawRiverChains = (chains: string[][], color: string, strokeWidth: number) => {
 			const drawn = new Set<string>();
 			for (const chain of chains) {
-				// Find the first hex in this chain that's already drawn
-				let end = chain.length - 1;
-				for (let i = 0; i < chain.length; i++) {
-					if (drawn.has(chain[i])) { end = i; break; }
-				}
-				const pts = chain.slice(0, end + 1)
+				// Skip leading hexes that are already drawn by a prior chain,
+				// backing up one so the first segment connects at the junction.
+				let start = 0;
+				while (start < chain.length - 1 && drawn.has(chain[start])) start++;
+				const drawStart = Math.max(0, start - 1);
+
+				// Always render to the end — never cut off at interior intersections.
+				const pts = chain.slice(drawStart)
 					.map(k => centerMap.get(k))
 					.filter((p): p is { cx: number; cy: number } => !!p);
 				if (pts.length >= 2) appendPath(pts, color, strokeWidth);
