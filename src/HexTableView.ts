@@ -2,7 +2,8 @@ import { App, ItemView, Modal, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type DuckmagePlugin from "./DuckmagePlugin";
 import { VIEW_TYPE_HEX_TABLE } from "./constants";
 import { getAllSectionData, setSectionContent, addLinkToSection, addBacklinkToFile } from "./sections";
-import { getTerrainFromFile } from "./frontmatter";
+import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
+import { getIconUrl } from "./utils";
 import { normalizeFolder } from "./utils";
 import type { TerrainColor, LinkSection } from "./types";
 
@@ -147,6 +148,65 @@ class MultiLinkNavModal extends Modal {
 					this.app.workspace.getLeaf(false).openFile(file);
 					this.close();
 				}
+			});
+		}
+	}
+
+	onClose(): void { this.contentEl.empty(); }
+}
+
+// ── Terrain picker modal ──────────────────────────────────────────────────────
+
+class TerrainPickerModal extends Modal {
+	constructor(
+		app: App,
+		private plugin: DuckmagePlugin,
+		private hexPath: string,
+		private currentTerrain: string | null,
+		private onPicked: () => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText("Select terrain");
+		const { contentEl } = this;
+		contentEl.addClass("duckmage-terrain-picker-modal");
+
+		const grid = contentEl.createDiv({ cls: "duckmage-terrain-picker duckmage-terrain-picker-full" });
+		for (const entry of this.plugin.settings.terrainPalette) {
+			const btn = grid.createDiv({
+				cls: `duckmage-terrain-option${entry.name === this.currentTerrain ? " is-selected" : ""}`,
+			});
+			const preview = btn.createDiv({ cls: "duckmage-terrain-preview" });
+			preview.style.backgroundColor = entry.color;
+			if (entry.icon) {
+				const img = preview.createEl("img", { cls: "duckmage-terrain-preview-icon" });
+				img.src = getIconUrl(this.plugin, entry.icon);
+				img.alt = entry.name;
+			}
+			btn.createSpan({ text: entry.name, cls: "duckmage-terrain-option-name" });
+			btn.addEventListener("click", async () => {
+				if (!this.app.vault.getAbstractFileByPath(this.hexPath)) {
+					await this.plugin.createHexNote(
+						...this.hexPath.replace(/\.md$/, "").split("/").pop()!.split("_").map(Number) as [number, number],
+					);
+				}
+				await setTerrainInFile(this.app, this.hexPath, entry.name);
+				this.onPicked();
+				this.close();
+			});
+		}
+
+		if (this.currentTerrain) {
+			const clearBtn = contentEl.createEl("button", {
+				text: "Clear terrain",
+				cls: "duckmage-clear-btn mod-warning",
+			});
+			clearBtn.addEventListener("click", async () => {
+				await setTerrainInFile(this.app, this.hexPath, null);
+				this.onPicked();
+				this.close();
 			});
 		}
 	}
@@ -575,14 +635,26 @@ export class HexTableView extends ItemView {
 		});
 
 		// Terrain cell
-		const terrainTd = tr.createEl("td");
-		if (terrainEntry) {
-			const swatch = terrainTd.createSpan({ cls: "duckmage-hex-table-swatch" });
-			swatch.style.backgroundColor = terrainEntry.color;
-			terrainTd.appendText(terrainEntry.name);
-		} else {
-			terrainTd.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
-		}
+		const terrainTd = tr.createEl("td", { cls: "duckmage-hex-table-cell-clickable" });
+		const renderTerrainCell = () => {
+			terrainTd.empty();
+			const current = getTerrainFromFile(this.app, path);
+			const entry = current ? palette.find(p => p.name === current) : undefined;
+			if (entry) {
+				const swatch = terrainTd.createSpan({ cls: "duckmage-hex-table-swatch" });
+				swatch.style.backgroundColor = entry.color;
+				terrainTd.appendText(entry.name);
+			} else {
+				terrainTd.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
+			}
+		};
+		renderTerrainCell();
+		terrainTd.addEventListener("click", () => {
+			const current = getTerrainFromFile(this.app, path);
+			new TerrainPickerModal(this.app, this.plugin, path, current, () => {
+				renderTerrainCell();
+			}).open();
+		});
 
 		// Section cells
 		for (const col of COLUMNS) {

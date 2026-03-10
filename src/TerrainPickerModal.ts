@@ -7,6 +7,7 @@ export class TerrainPickerModal extends Modal {
 		app: App,
 		private plugin: DuckmagePlugin,
 		private onSelect: (terrainName: string | null) => void,
+		private onPickMode?: () => void,
 	) {
 		super(app);
 	}
@@ -19,6 +20,15 @@ export class TerrainPickerModal extends Modal {
 
 		const section = contentEl.createDiv({ cls: "duckmage-editor-section" });
 		const grid = section.createDiv({ cls: "duckmage-terrain-picker duckmage-terrain-picker-full" });
+
+		// Eyedropper / pick-from-map option
+		const eyeBtn = grid.createDiv({ cls: "duckmage-terrain-option duckmage-terrain-option-eyedropper" });
+		eyeBtn.createDiv({ cls: "duckmage-terrain-preview duckmage-terrain-preview-eyedropper" }).setText("⌖");
+		eyeBtn.createSpan({ text: "Pick", cls: "duckmage-terrain-option-name" });
+		eyeBtn.addEventListener("click", () => {
+			this.onPickMode?.();
+			this.close();
+		});
 
 		// Clear terrain option
 		const clearBtn = grid.createDiv({ cls: "duckmage-terrain-option duckmage-terrain-option-clear" });

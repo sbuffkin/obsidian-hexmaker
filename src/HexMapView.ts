@@ -27,6 +27,7 @@ export class HexMapView extends ItemView {
 	private activeRiverChain: string[] | null = null;
 	private paintTerrainName: string | null = null;
 	private paintIconName: string | null = null;
+	private terrainPickMode = false;
 	// Per-hex write queues: always stores the *latest* desired value so rapid
 	// repaints of the same hex coalesce into at most one queued write.
 	private pendingTerrainWrites = new Map<string, { x: number; y: number; terrain: string | null }>();
@@ -150,14 +151,24 @@ export class HexMapView extends ItemView {
 			if (hasDragged) { e.stopPropagation(); hasDragged = false; }
 		}, { capture: true } as AddEventListenerOptions);
 
-		// Right-click anywhere exits the active tool
+		// Right-click: on a hex in road/river mode → let onHexContextMenu handle the delete.
+		// Double-right-click off a hex → exit the active tool.
+		let lastOffHexRightClick = 0;
 		this.registerDomEvent(contentEl, "contextmenu", (e: MouseEvent) => {
 			if (this.drawingMode === null) return;
+			const onHex = (e.target as HTMLElement).closest(".duckmage-hex");
+			if (onHex && (this.drawingMode === "road" || this.drawingMode === "river")) return;
 			e.preventDefault();
 			e.stopPropagation();
-			if (this.drawingMode === "terrain") this.exitTerrainMode();
-			else if (this.drawingMode === "icon") this.exitIconMode();
-			else { this.drawingMode = null; this.updateToolbarButtonStates(); }
+			const now = Date.now();
+			if (now - lastOffHexRightClick < 400) {
+				lastOffHexRightClick = 0;
+				if (this.drawingMode === "terrain") this.exitTerrainMode();
+				else if (this.drawingMode === "icon") this.exitIconMode();
+				else { this.drawingMode = null; this.updateToolbarButtonStates(); }
+			} else {
+				lastOffHexRightClick = now;
+			}
 		}, { capture: true } as AddEventListenerOptions);
 
 		// Double-clicking off the hex grid (but inside the viewport) exits terrain/icon mode
@@ -266,8 +277,15 @@ export class HexMapView extends ItemView {
 		// Always open the picker — even if already active, so user can switch terrain
 		new TerrainPickerModal(this.app, this.plugin, (terrainName: string | null) => {
 			this.drawingMode = "terrain";
+			this.terrainPickMode = false;
 			this.paintTerrainName = terrainName;
 			this.paintIconName = null;
+			this.updateToolbarButtonStates();
+		}, () => {
+			// Eyedropper: enter terrain mode in pick-from-map state
+			this.drawingMode = "terrain";
+			this.terrainPickMode = true;
+			this.paintTerrainName = null;
 			this.updateToolbarButtonStates();
 		}).open();
 	}
@@ -276,6 +294,7 @@ export class HexMapView extends ItemView {
 		if (this.drawingMode !== "terrain") return;
 		this.drawingMode = null;
 		this.paintTerrainName = null;
+		this.terrainPickMode = false;
 		this.updateToolbarButtonStates();
 	}
 
@@ -312,26 +331,40 @@ export class HexMapView extends ItemView {
 			if (this.iconBtnPreview) this.iconBtnPreview.style.display = "none";
 		}
 		if (this.drawingMode === "terrain") {
-			const entry = this.paintTerrainName
-				? this.plugin.settings.terrainPalette.find(p => p.name === this.paintTerrainName)
-				: undefined;
-			if (entry) {
+			if (this.terrainPickMode) {
+				// Eyedropper waiting for a click — show ⌖ as the preview
 				if (this.terrainToolbarBtn) {
-					this.terrainToolbarBtn.style.borderColor = entry.color;
-					this.terrainToolbarBtn.style.color = entry.color;
+					this.terrainToolbarBtn.style.borderColor = "var(--interactive-accent)";
+					this.terrainToolbarBtn.style.color = "var(--interactive-accent)";
 				}
 				if (this.terrainBtnPreview) {
-					this.terrainBtnPreview.style.backgroundColor = entry.color;
+					this.terrainBtnPreview.style.backgroundColor = "";
 					this.terrainBtnPreview.style.display = "inline-block";
+					this.terrainBtnPreview.textContent = "⌖";
 				}
 			} else {
-				// Clear mode — show active state without a color
-				if (this.terrainToolbarBtn) {
-					this.terrainToolbarBtn.style.borderColor = "";
-					this.terrainToolbarBtn.style.color = "";
-				}
-				if (this.terrainBtnPreview) {
-					this.terrainBtnPreview.style.display = "none";
+				if (this.terrainBtnPreview) this.terrainBtnPreview.textContent = "";
+				const entry = this.paintTerrainName
+					? this.plugin.settings.terrainPalette.find(p => p.name === this.paintTerrainName)
+					: undefined;
+				if (entry) {
+					if (this.terrainToolbarBtn) {
+						this.terrainToolbarBtn.style.borderColor = entry.color;
+						this.terrainToolbarBtn.style.color = entry.color;
+					}
+					if (this.terrainBtnPreview) {
+						this.terrainBtnPreview.style.backgroundColor = entry.color;
+						this.terrainBtnPreview.style.display = "inline-block";
+					}
+				} else {
+					// Clear mode — show active state without a color
+					if (this.terrainToolbarBtn) {
+						this.terrainToolbarBtn.style.borderColor = "";
+						this.terrainToolbarBtn.style.color = "";
+					}
+					if (this.terrainBtnPreview) {
+						this.terrainBtnPreview.style.display = "none";
+					}
 				}
 			}
 		} else {
@@ -498,6 +531,16 @@ export class HexMapView extends ItemView {
 
 	private onHexPaintClick(x: number, y: number): void {
 		if (this.drawingMode !== "terrain") return;
+
+		// Eyedropper pick mode: sample this hex's terrain and switch to painting it
+		if (this.terrainPickMode) {
+			const sampled = getTerrainFromFile(this.app, this.plugin.hexPath(x, y));
+			this.terrainPickMode = false;
+			this.paintTerrainName = sampled;
+			this.updateToolbarButtonStates();
+			return;
+		}
+
 		const terrain = this.paintTerrainName;
 		const path = this.plugin.hexPath(x, y);
 		const palette = this.plugin.settings.terrainPalette ?? [];

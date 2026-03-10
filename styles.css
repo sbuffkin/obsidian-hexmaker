@@ -244,6 +244,19 @@
 	overflow: hidden;
 	flex-shrink: 0;
 }
+.duckmage-terrain-preview-eyedropper {
+	background: var(--background-secondary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.1em;
+	color: var(--text-accent);
+}
+
+.duckmage-terrain-option-eyedropper:hover .duckmage-terrain-preview-eyedropper {
+	color: var(--interactive-accent);
+}
+
 .duckmage-terrain-preview-clear {
 	background: repeating-linear-gradient(
 		45deg,
