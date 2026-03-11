@@ -353,7 +353,8 @@
 	text-decoration: underline;
 }
 
-.duckmage-link-remove-btn {
+.duckmage-link-remove-btn,
+.duckmage-link-roll-btn {
 	flex-shrink: 0;
 	background: none;
 	border: none;
@@ -368,6 +369,10 @@
 .duckmage-link-remove-btn:hover {
 	color: var(--text-error);
 	background: var(--background-modifier-error-hover);
+}
+.duckmage-link-roll-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
 }
 
 .duckmage-link-empty {
@@ -804,6 +809,11 @@
 	background: var(--background-modifier-hover);
 }
 
+.duckmage-hex-table td:first-child {
+	min-width: 64px;
+	white-space: nowrap;
+}
+
 .duckmage-hex-table-coords {
 	color: var(--text-accent);
 	cursor: pointer;
@@ -813,6 +823,28 @@
 
 .duckmage-hex-table-coords:hover {
 	text-decoration: underline;
+}
+
+.duckmage-hex-table-jump-btn {
+	margin-right: 3px;
+	padding: 0;
+	width: 12px;
+	height: 12px;
+	font-size: 0.65em;
+	line-height: 12px;
+	background: none;
+	border: none;
+	color: var(--text-faint);
+	cursor: pointer;
+	opacity: 0.5;
+	vertical-align: middle;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.duckmage-hex-table-jump-btn:hover {
+	opacity: 1;
+	color: var(--text-accent);
 }
 
 .duckmage-hex-table-swatch {

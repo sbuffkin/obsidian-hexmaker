@@ -394,7 +394,7 @@ export class HexMapView extends ItemView {
 		}
 	}
 
-	private centerOnHex(x: number, y: number): void {
+	centerOnHex(x: number, y: number): void {
 		const hexEl = this.viewportEl?.querySelector<HTMLElement>(
 			`[data-x="${x}"][data-y="${y}"]`,
 		);
@@ -508,7 +508,15 @@ export class HexMapView extends ItemView {
 			this.onHexDeleteClick(x, y);
 			return;
 		}
-		new HexEditorModal(this.app, this.plugin, x, y, (t, i) => this.renderGrid(t, i)).open();
+		new HexEditorModal(this.app, this.plugin, x, y, (t, i) => {
+			if (t !== undefined || i !== undefined) {
+				// Terrain/icon changed — immediate update with explicit overrides avoids cache race
+				this.renderGrid(t, i);
+			} else {
+				// Link-only change — defer so metadata cache has time to repopulate after vault.modify
+				setTimeout(() => this.renderGrid(), 300);
+			}
+		}).open();
 	}
 
 	private async onHexClick(x: number, y: number): Promise<void> {

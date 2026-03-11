@@ -15,13 +15,16 @@ import {
 
 const DIE_OPTIONS = [
 	{ label: "— no die —", value: 0 },
-	{ label: "d4",  value: 4 },
-	{ label: "d6",  value: 6 },
-	{ label: "d8",  value: 8 },
-	{ label: "d10", value: 10 },
-	{ label: "d12", value: 12 },
-	{ label: "d20", value: 20 },
+	{ label: "d4",   value: 4 },
+	{ label: "d6",   value: 6 },
+	{ label: "d8",   value: 8 },
+	{ label: "d10",  value: 10 },
+	{ label: "d12",  value: 12 },
+	{ label: "d20",  value: 20 },
 	{ label: "d100", value: 100 },
+	{ label: "d200", value: 200 },
+	{ label: "d500", value: 500 },
+	{ label: "d1000", value: 1000 },
 ];
 
 interface FileNode  { type: "file";   file: TFile; }
@@ -164,7 +167,7 @@ export class RandomTableView extends ItemView {
 		const prefix = folder ? folder + "/" : "";
 
 		let files = this.app.vault.getMarkdownFiles()
-			.filter(f => !prefix || f.path.startsWith(prefix))
+			.filter(f => (!prefix || f.path.startsWith(prefix)) && !f.basename.startsWith("_"))
 			.sort((a, b) => a.path.localeCompare(b.path));
 
 		if (this.filterQuery) {

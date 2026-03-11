@@ -84,13 +84,16 @@ export class DuckmageSettingTab extends PluginSettingTab {
 			.setDesc("Die size used when creating new random table files (d6, d20, d100, etc.).")
 			.addDropdown(dropdown =>
 				dropdown
-					.addOption("4",   "d4")
-					.addOption("6",   "d6")
-					.addOption("8",   "d8")
-					.addOption("10",  "d10")
-					.addOption("12",  "d12")
-					.addOption("20",  "d20")
-					.addOption("100", "d100")
+					.addOption("4",    "d4")
+					.addOption("6",    "d6")
+					.addOption("8",    "d8")
+					.addOption("10",   "d10")
+					.addOption("12",   "d12")
+					.addOption("20",   "d20")
+					.addOption("100",  "d100")
+					.addOption("200",  "d200")
+					.addOption("500",  "d500")
+					.addOption("1000", "d1000")
 					.setValue(String(this.plugin.settings.defaultTableDice ?? 100))
 					.onChange(async value => {
 						this.plugin.settings.defaultTableDice = parseInt(value, 10);

@@ -176,13 +176,17 @@ export class HexEditorModal extends Modal {
 			await refresh();
 		};
 
+		const onRollClick = section === "Encounters Table"
+			? (file: TFile) => new RandomTableModal(this.app, this.plugin, undefined, file.path).open()
+			: undefined;
+
 		const refresh = async () => {
 			linksEl.empty();
-			this.renderLinkList(linksEl, await getLinksInSection(this.app, path, section), path, onRemove, onItemClick);
+			this.renderLinkList(linksEl, await getLinksInSection(this.app, path, section), path, onRemove, onItemClick, onRollClick);
 		};
 
 		if (hexExists) {
-			this.renderLinkList(linksEl, initialLinks, path, onRemove, onItemClick);
+			this.renderLinkList(linksEl, initialLinks, path, onRemove, onItemClick, onRollClick);
 		} else {
 			linksEl.createSpan({ text: "None", cls: "duckmage-link-empty" });
 		}
@@ -278,6 +282,7 @@ export class HexEditorModal extends Modal {
 		sourcePath: string,
 		onRemove?: (link: string) => void,
 		onItemClick?: (link: string, file: TFile) => void,
+		onRollClick?: (file: TFile) => void,
 	): void {
 		if (links.length === 0) {
 			container.createSpan({ text: "None", cls: "duckmage-link-empty" });
@@ -296,6 +301,11 @@ export class HexEditorModal extends Modal {
 							this.close();
 						}
 					});
+					if (onRollClick) {
+						const rollBtn = item.createEl("button", { text: "🎲", cls: "duckmage-link-roll-btn" });
+						rollBtn.title = "Roll on this table";
+						rollBtn.addEventListener("click", () => onRollClick(file));
+					}
 				}
 				if (onRemove) {
 					const removeBtn = item.createEl("button", { text: "×", cls: "duckmage-link-remove-btn" });

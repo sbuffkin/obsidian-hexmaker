@@ -1,6 +1,7 @@
 import { App, ItemView, Modal, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type DuckmagePlugin from "./DuckmagePlugin";
-import { VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
+import { VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
+import type { HexMapView } from "./HexMapView";
 import { getAllSectionData, setSectionContent, addLinkToSection, addBacklinkToFile } from "./sections";
 import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
 import { getIconUrl, normalizeFolder, makeTableTemplate } from "./utils";
@@ -315,6 +316,12 @@ export class HexTableView extends ItemView {
 	private scrollEl: HTMLElement | null = null;
 	private updateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+	// Sort state
+	private sortPrimary: "x" | "y" = "x";
+	private sortAsc = true;
+	private sortPrimaryBtn: HTMLButtonElement | null = null;
+	private sortDirBtn: HTMLButtonElement | null = null;
+
 	// Filter state
 	private filterXMin: number | null = null;
 	private filterXMax: number | null = null;
@@ -435,6 +442,31 @@ export class HexTableView extends ItemView {
 
 		toolbar.createDiv({ cls: "duckmage-filter-separator" });
 
+		// Sort controls
+		this.sortPrimaryBtn = toolbar.createEl("button", {
+			text: "Sort: X→Y",
+			cls: "duckmage-filter-btn",
+		});
+		this.sortPrimaryBtn.title = "Toggle sort priority between X-first and Y-first";
+		this.sortPrimaryBtn.addEventListener("click", () => {
+			this.sortPrimary = this.sortPrimary === "x" ? "y" : "x";
+			this.sortPrimaryBtn!.setText(this.sortPrimary === "x" ? "Sort: X→Y" : "Sort: Y→X");
+			void this.loadTable();
+		});
+
+		this.sortDirBtn = toolbar.createEl("button", {
+			text: "↑ Asc",
+			cls: "duckmage-filter-btn",
+		});
+		this.sortDirBtn.title = "Toggle sort direction";
+		this.sortDirBtn.addEventListener("click", () => {
+			this.sortAsc = !this.sortAsc;
+			this.sortDirBtn!.setText(this.sortAsc ? "↑ Asc" : "↓ Desc");
+			void this.loadTable();
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
 		// Clear all filters
 		const clearBtn = toolbar.createEl("button", { text: "Clear filters", cls: "duckmage-filter-btn" });
 		clearBtn.addEventListener("click", () => this.clearFilters());
@@ -495,7 +527,13 @@ export class HexTableView extends ItemView {
 			return;
 		}
 
-		files.sort((a, b) => a.x !== b.x ? a.x - b.x : a.y - b.y);
+		files.sort((a, b) => {
+			const [p, s] = this.sortPrimary === "x" ? ["x", "y"] : ["y", "x"];
+			const diff = (a as any)[p] !== (b as any)[p]
+				? (a as any)[p] - (b as any)[p]
+				: (a as any)[s] - (b as any)[s];
+			return this.sortAsc ? diff : -diff;
+		});
 
 		if (files.length === 0) {
 			this.scrollEl.empty();
@@ -625,6 +663,8 @@ export class HexTableView extends ItemView {
 
 		// Coords cell — click to open note
 		const coordsTd = tr.createEl("td");
+
+		const jumpBtn = coordsTd.createEl("button", { text: "◎", cls: "duckmage-hex-table-jump-btn" });
 		const coordsSpan = coordsTd.createSpan({
 			text: `${x},${y}`,
 			cls: "duckmage-hex-table-coords",
@@ -633,6 +673,20 @@ export class HexTableView extends ItemView {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile) {
 				void this.app.workspace.getLeaf(false).openFile(file);
+			}
+		});
+		jumpBtn.title = "Center map on this hex";
+		jumpBtn.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_HEX_MAP);
+			if (existingLeaves.length > 0) {
+				this.app.workspace.revealLeaf(existingLeaves[0]);
+				(existingLeaves[0].view as HexMapView).centerOnHex(x, y);
+			} else {
+				const leaf = this.app.workspace.getLeaf("tab");
+				await leaf.setViewState({ type: VIEW_TYPE_HEX_MAP });
+				// Wait one frame for the view to render before centering
+				setTimeout(() => (leaf.view as HexMapView).centerOnHex(x, y), 100);
 			}
 		});
 
