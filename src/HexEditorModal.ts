@@ -55,8 +55,9 @@ export class HexEditorModal extends Modal {
 		this.renderDropdownSection(contentEl, path, "Towns",           hexExists, this.plugin.settings.townsFolder,    allLinks.get("towns")           ?? []);
 		this.renderDropdownSection(contentEl, path, "Dungeons",        hexExists, this.plugin.settings.dungeonsFolder, allLinks.get("dungeons")        ?? []);
 		this.renderDropdownSection(contentEl, path, "Features",        hexExists, this.plugin.settings.featuresFolder, allLinks.get("features")        ?? []);
-		this.renderDropdownSection(contentEl, path, "Quests",          hexExists, this.plugin.settings.questsFolder,   allLinks.get("quests")          ?? []);
-		this.renderDropdownSection(contentEl, path, "Encounters Table", hexExists, this.plugin.settings.tablesFolder,  allLinks.get("encounters table") ?? []);
+		this.renderDropdownSection(contentEl, path, "Quests",          hexExists, this.plugin.settings.questsFolder,    allLinks.get("quests")          ?? []);
+		this.renderDropdownSection(contentEl, path, "Factions",        hexExists, this.plugin.settings.factionsFolder,  allLinks.get("factions")        ?? []);
+		this.renderDropdownSection(contentEl, path, "Encounters Table", hexExists, this.plugin.settings.tablesFolder,   allLinks.get("encounters table") ?? []);
 
 		contentEl.createEl("hr", { cls: "duckmage-editor-divider" });
 		contentEl.createEl("h3", { text: "Notes" });

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, TFile } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, TFile } from "obsidian";
 import type DuckmagePlugin from "./DuckmagePlugin";
 import { normalizeFolder } from "./utils";
 
@@ -25,6 +25,37 @@ export class DuckmageSettingTab extends PluginSettingTab {
 						this.plugin.settings.worldFolder = normalizeFolder(value ?? "");
 						await this.plugin.saveSettings();
 					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Set up folders")
+			.setDesc("Populates any blank folder settings below with defaults under the world folder, then creates those folders in your vault. Only blank fields are affected — manually set values are left untouched.")
+			.addButton(btn =>
+				btn.setButtonText("Generate folders").setCta().onClick(async () => {
+					const world = normalizeFolder(this.plugin.settings.worldFolder) || "world";
+					const defaults: [keyof typeof this.plugin.settings, string][] = [
+						["hexFolder",      `${world}/hexes`],
+						["townsFolder",    `${world}/towns`],
+						["dungeonsFolder", `${world}/dungeons`],
+						["questsFolder",   `${world}/quests`],
+						["featuresFolder", `${world}/features`],
+						["factionsFolder", `${world}/factions`],
+						["tablesFolder",   `${world}/tables`],
+					];
+					for (const [key, path] of defaults) {
+						if (!this.plugin.settings[key]) {
+							(this.plugin.settings as unknown as Record<string, unknown>)[key] = path;
+							try {
+								if (!this.app.vault.getAbstractFileByPath(path)) {
+									await this.app.vault.createFolder(path);
+								}
+							} catch { /* folder already exists */ }
+						}
+					}
+					await this.plugin.saveSettings();
+					new Notice("Folders generated.");
+					this.display();
+				}),
 			);
 
 		new Setting(containerEl)
@@ -88,6 +119,19 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.featuresFolder)
 					.onChange(async value => {
 						this.plugin.settings.featuresFolder = normalizeFolder(value ?? "");
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Factions folder")
+			.setDesc("Vault-relative folder to populate the Factions dropdown in the hex editor. Files starting with _ are excluded.")
+			.addText(text =>
+				text
+					.setPlaceholder("world/factions")
+					.setValue(this.plugin.settings.factionsFolder)
+					.onChange(async value => {
+						this.plugin.settings.factionsFolder = normalizeFolder(value ?? "");
 						await this.plugin.saveSettings();
 					}),
 			);

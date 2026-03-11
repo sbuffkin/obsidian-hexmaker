@@ -16,6 +16,7 @@ const COLUMNS: { key: string; label: string; isLink: boolean }[] = [
 	{ key: "dungeons",         label: "Dungeons",       isLink: true  },
 	{ key: "features",         label: "Features",       isLink: true  },
 	{ key: "quests",           label: "Quests",         isLink: true  },
+	{ key: "factions",         label: "Factions",       isLink: true  },
 	{ key: "encounters table", label: "Enc. Table",     isLink: true  },
 	{ key: "hidden",           label: "Hidden",         isLink: false },
 	{ key: "secret",           label: "Secret",         isLink: false },
@@ -369,6 +370,7 @@ export class HexTableView extends ItemView {
 	private filterHasDungeon = false;
 	private filterHasFeature = false;
 	private filterHasQuest = false;
+	private filterHasFaction = false;
 
 	// Filter UI elements (created once in onOpen)
 	private filterXMinInput: HTMLInputElement | null = null;
@@ -380,6 +382,7 @@ export class HexTableView extends ItemView {
 	private dungeonCb: HTMLInputElement | null = null;
 	private featureCb: HTMLInputElement | null = null;
 	private questCb: HTMLInputElement | null = null;
+	private factionCb: HTMLInputElement | null = null;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: DuckmagePlugin) {
 		super(leaf);
@@ -499,6 +502,16 @@ export class HexTableView extends ItemView {
 		questLabel.appendText(" Has Quest");
 		this.questCb.addEventListener("change", () => {
 			this.filterHasQuest = this.questCb!.checked;
+			this.applyFilters();
+		});
+
+		// Has Faction checkbox
+		const factionLabel = toolbar.createEl("label", { cls: "duckmage-filter-check-label" });
+		this.factionCb = factionLabel.createEl("input") as HTMLInputElement;
+		this.factionCb.type = "checkbox";
+		factionLabel.appendText(" Has Faction");
+		this.factionCb.addEventListener("change", () => {
+			this.filterHasFaction = this.factionCb!.checked;
 			this.applyFilters();
 		});
 
@@ -668,15 +681,17 @@ export class HexTableView extends ItemView {
 		this.filterHasDungeon = false;
 		this.filterHasFeature = false;
 		this.filterHasQuest = false;
+		this.filterHasFaction = false;
 
 		if (this.filterXMinInput) this.filterXMinInput.value = "";
 		if (this.filterXMaxInput) this.filterXMaxInput.value = "";
 		if (this.filterYMinInput) this.filterYMinInput.value = "";
 		if (this.filterYMaxInput) this.filterYMaxInput.value = "";
 		if (this.townCb)    this.townCb.checked = false;
-		if (this.dungeonCb) this.dungeonCb.checked = false;
-		if (this.featureCb) this.featureCb.checked = false;
-		if (this.questCb)   this.questCb.checked = false;
+		if (this.dungeonCb)  this.dungeonCb.checked  = false;
+		if (this.featureCb)  this.featureCb.checked  = false;
+		if (this.questCb)    this.questCb.checked    = false;
+		if (this.factionCb)  this.factionCb.checked  = false;
 		this.updateTerrainBtnLabel();
 		this.applyFilters();
 	}
@@ -694,6 +709,7 @@ export class HexTableView extends ItemView {
 			const hasDungeon = tr.dataset.hasDungeon === "1";
 			const hasFeature = tr.dataset.hasFeature === "1";
 			const hasQuest   = tr.dataset.hasQuest   === "1";
+			const hasFaction = tr.dataset.hasFaction === "1";
 
 			let show = true;
 			if (this.filterXMin !== null && x < this.filterXMin) show = false;
@@ -706,6 +722,7 @@ export class HexTableView extends ItemView {
 			if (this.filterHasDungeon && !hasDungeon) show = false;
 			if (this.filterHasFeature && !hasFeature) show = false;
 			if (this.filterHasQuest   && !hasQuest)   show = false;
+			if (this.filterHasFaction && !hasFaction) show = false;
 
 			tr.classList.toggle("duckmage-row-hidden", !show);
 		}
@@ -731,15 +748,17 @@ export class HexTableView extends ItemView {
 		const hasDungeon = (links.get("dungeons") ?? []).length > 0;
 		const hasFeature = (links.get("features") ?? []).length > 0;
 		const hasQuest   = (links.get("quests")   ?? []).length > 0;
+		const hasFaction = (links.get("factions") ?? []).length > 0;
 
 		// Store filter-relevant data on the row
-		tr.dataset.hexX      = String(x);
-		tr.dataset.hexY      = String(y);
-		tr.dataset.terrain   = terrainName ?? "";
+		tr.dataset.hexX       = String(x);
+		tr.dataset.hexY       = String(y);
+		tr.dataset.terrain    = terrainName ?? "";
 		tr.dataset.hasTown    = hasTown    ? "1" : "0";
 		tr.dataset.hasDungeon = hasDungeon ? "1" : "0";
 		tr.dataset.hasFeature = hasFeature ? "1" : "0";
 		tr.dataset.hasQuest   = hasQuest   ? "1" : "0";
+		tr.dataset.hasFaction = hasFaction ? "1" : "0";
 
 		// Coords cell — click to open note
 		const coordsTd = tr.createEl("td");

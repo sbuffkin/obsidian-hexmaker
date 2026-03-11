@@ -112,5 +112,6 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   riverColor: "#3b82f6",
   hexOrientation: "flat",
   tablesFolder: "world/tables",
+  factionsFolder: "",
   defaultTableDice: 100,
 };

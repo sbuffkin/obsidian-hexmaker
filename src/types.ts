@@ -25,10 +25,11 @@ export interface DuckmagePluginSettings {
 	riverColor: string;
 	hexOrientation: "pointy" | "flat";
 	tablesFolder: string;
+	factionsFolder: string;
 	defaultTableDice: number;
 }
 
-export const LINK_SECTIONS = ["Towns", "Dungeons", "Features", "Quests", "Encounters Table"] as const;
+export const LINK_SECTIONS = ["Towns", "Dungeons", "Features", "Quests", "Factions", "Encounters Table"] as const;
 export type LinkSection = typeof LINK_SECTIONS[number];
 
 export const TEXT_SECTIONS = [
