@@ -195,6 +195,23 @@ export class DuckmageSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Hex editor sections start collapsed")
+			.setDesc("Choose which sections open collapsed by default in the right-click hex editor.")
+			.then(setting => {
+				const addCb = (label: string, get: () => boolean, set: (v: boolean) => void) => {
+					const lbl = setting.controlEl.createEl("label", { cls: "duckmage-collapse-cb-label" });
+					const cb = lbl.createEl("input") as HTMLInputElement;
+					cb.type = "checkbox";
+					cb.checked = get();
+					cb.addEventListener("change", async () => { set(cb.checked); await this.plugin.saveSettings(); });
+					lbl.appendText(label);
+				};
+				addCb("Terrain",        () => this.plugin.settings.hexEditorTerrainCollapsed,  v => { this.plugin.settings.hexEditorTerrainCollapsed  = v; });
+				addCb("World features", () => this.plugin.settings.hexEditorFeaturesCollapsed, v => { this.plugin.settings.hexEditorFeaturesCollapsed = v; });
+				addCb("Notes",          () => this.plugin.settings.hexEditorNotesCollapsed,    v => { this.plugin.settings.hexEditorNotesCollapsed    = v; });
+			});
+
+		new Setting(containerEl)
 			.setName("Template path")
 			.setDesc("Vault-relative path to a hex note template. Supports {{x}}, {{y}}, {{title}}. Include ## Towns, ## Dungeons, and ## Features headings for the link sections.")
 			.addText(text =>

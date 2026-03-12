@@ -76,6 +76,9 @@ export default class DuckmagePlugin extends Plugin {
 		if (this.settings.questsFolder === undefined) this.settings.questsFolder = "";
 		if (this.settings.featuresFolder === undefined) this.settings.featuresFolder = "";
 		if (this.settings.factionsFolder === undefined) this.settings.factionsFolder = "";
+		if (this.settings.hexEditorTerrainCollapsed  === undefined) this.settings.hexEditorTerrainCollapsed  = false;
+		if (this.settings.hexEditorFeaturesCollapsed === undefined) this.settings.hexEditorFeaturesCollapsed = false;
+		if (this.settings.hexEditorNotesCollapsed    === undefined) this.settings.hexEditorNotesCollapsed    = false;
 		if (!Array.isArray(this.settings.terrainPalette) || this.settings.terrainPalette.length === 0) {
 			this.settings.terrainPalette = [...DEFAULT_TERRAIN_PALETTE];
 		} else {

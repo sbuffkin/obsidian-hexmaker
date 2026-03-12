@@ -114,4 +114,7 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   tablesFolder: "world/tables",
   factionsFolder: "",
   defaultTableDice: 100,
+  hexEditorTerrainCollapsed: false,
+  hexEditorFeaturesCollapsed: false,
+  hexEditorNotesCollapsed: false,
 };
