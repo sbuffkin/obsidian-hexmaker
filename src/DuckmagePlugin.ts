@@ -218,7 +218,7 @@ export default class DuckmagePlugin extends Plugin {
 				try {
 					await this.app.vault.create(
 						path,
-						makeTableTemplate(this.settings.defaultTableDice, 1, { "table-type": sectionType }, this.buildRollerLink(path)),
+						makeTableTemplate(this.settings.defaultTableDice, 1, { "table-type": sectionType, "roll-filter": false, "encounter-filter": false }, this.buildRollerLink(path)),
 					);
 				} catch { /* ignore */ }
 			}

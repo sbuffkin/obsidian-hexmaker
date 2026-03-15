@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { TFile } from "obsidian";
-import { setTerrainInFile, setIconOverrideInFile } from "../src/frontmatter";
+import { getTerrainFromFile, setTerrainInFile, getIconOverrideFromFile, setIconOverrideInFile } from "../src/frontmatter";
 
 /** Build a minimal mock App backed by an in-memory string. */
 function makeApp(filePath: string, initialContent: string) {
@@ -120,5 +120,87 @@ describe("setIconOverrideInFile", () => {
 		const result = await setIconOverrideInFile(app, "hex.md", null);
 		expect(result).toBe(true);
 		expect(getContent()).toBe("No frontmatter.");
+	});
+});
+
+// ── helpers for cache-based reads ────────────────────────────────────────────
+
+/** Build a minimal mock App that returns a metadata cache with the given frontmatter. */
+function makeAppWithCache(filePath: string, frontmatter: Record<string, unknown> | null) {
+	const file = Object.create(TFile.prototype) as TFile;
+	file.path = filePath;
+
+	const app = {
+		vault: {
+			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
+		},
+		metadataCache: {
+			getFileCache: vi.fn(() => (frontmatter !== null ? { frontmatter } : null)),
+		},
+	} as unknown as import("obsidian").App;
+
+	return { app };
+}
+
+// ── getTerrainFromFile ────────────────────────────────────────────────────────
+
+describe("getTerrainFromFile", () => {
+	it("returns null when the file does not exist", () => {
+		const { app } = makeAppWithCache("hex.md", { terrain: "forest" });
+		expect(getTerrainFromFile(app, "MISSING.md")).toBeNull();
+	});
+
+	it("returns the terrain string from the metadata cache", () => {
+		const { app } = makeAppWithCache("hex.md", { terrain: "forest" });
+		expect(getTerrainFromFile(app, "hex.md")).toBe("forest");
+	});
+
+	it("returns null when terrain field is absent from frontmatter", () => {
+		const { app } = makeAppWithCache("hex.md", { title: "Test" });
+		expect(getTerrainFromFile(app, "hex.md")).toBeNull();
+	});
+
+	it("returns null when there is no file cache", () => {
+		const { app } = makeAppWithCache("hex.md", null);
+		expect(getTerrainFromFile(app, "hex.md")).toBeNull();
+	});
+
+	it("returns null when terrain field is not a string (e.g. array)", () => {
+		const { app } = makeAppWithCache("hex.md", { terrain: ["forest", "plains"] });
+		expect(getTerrainFromFile(app, "hex.md")).toBeNull();
+	});
+
+	it("returns null when terrain field is a number", () => {
+		const { app } = makeAppWithCache("hex.md", { terrain: 42 });
+		expect(getTerrainFromFile(app, "hex.md")).toBeNull();
+	});
+});
+
+// ── getIconOverrideFromFile ───────────────────────────────────────────────────
+
+describe("getIconOverrideFromFile", () => {
+	it("returns null when the file does not exist", () => {
+		const { app } = makeAppWithCache("hex.md", { icon: "castle.png" });
+		expect(getIconOverrideFromFile(app, "MISSING.md")).toBeNull();
+	});
+
+	it("returns the icon string from the metadata cache", () => {
+		const { app } = makeAppWithCache("hex.md", { icon: "castle.png" });
+		expect(getIconOverrideFromFile(app, "hex.md")).toBe("castle.png");
+	});
+
+	it("returns null when icon field is absent from frontmatter", () => {
+		const { app } = makeAppWithCache("hex.md", { terrain: "forest" });
+		expect(getIconOverrideFromFile(app, "hex.md")).toBeNull();
+	});
+
+	it("returns null when there is no file cache", () => {
+		const { app } = makeAppWithCache("hex.md", null);
+		expect(getIconOverrideFromFile(app, "hex.md")).toBeNull();
+	});
+
+	it("returns null when icon field is not a string (e.g. boolean)", () => {
+		const { app } = makeAppWithCache("hex.md", { icon: true });
+		expect(getIconOverrideFromFile(app, "hex.md")).toBeNull();
 	});
 });

@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { normalizeFolder, makeTableTemplate } from "../src/utils";
+import { describe, it, expect, vi } from "vitest";
+import { normalizeFolder, makeTableTemplate, getIconUrl } from "../src/utils";
+import type DuckmagePlugin from "../src/DuckmagePlugin";
 
 // ── normalizeFolder ───────────────────────────────────────────────────────────
 
@@ -95,5 +96,77 @@ describe("makeTableTemplate", () => {
 	it("dice: 0 still produces valid frontmatter", () => {
 		const t = makeTableTemplate(0);
 		expect(t).toContain("dice: 0");
+	});
+
+	it("produces a valid (empty-row) template when exampleRows is 0", () => {
+		const t = makeTableTemplate(6, 0);
+		expect(t).toContain("dice: 6");
+		expect(t).toContain("| Result | Weight |");
+		expect(t).not.toContain("Example result");
+	});
+
+	it("serialises boolean extra frontmatter values", () => {
+		const t = makeTableTemplate(6, 3, { "roll-filter": false });
+		expect(t).toContain("roll-filter: false");
+	});
+
+	it("serialises number extra frontmatter values", () => {
+		const t = makeTableTemplate(6, 3, { level: 3 });
+		expect(t).toContain("level: 3");
+	});
+});
+
+// ── getIconUrl ────────────────────────────────────────────────────────────────
+
+/** Build a minimal plugin stub for getIconUrl. */
+function makePluginForIcon(
+	vaultIcons: string[],
+	iconsFolder: string,
+	manifestDir: string,
+): { plugin: DuckmagePlugin; getLastPath: () => string } {
+	let lastPath = "";
+	const getResourcePath = vi.fn((p: string) => {
+		lastPath = p;
+		return `resource://${p}`;
+	});
+	const plugin = {
+		vaultIconsSet: new Set(vaultIcons),
+		settings: { iconsFolder },
+		manifest: { dir: manifestDir },
+		app: { vault: { adapter: { getResourcePath } } },
+	} as unknown as DuckmagePlugin;
+	return { plugin, getLastPath: () => lastPath };
+}
+
+describe("getIconUrl", () => {
+	it("uses plugin icons dir when icon is not in vaultIconsSet", () => {
+		const { plugin, getLastPath } = makePluginForIcon([], "custom", "plugins/duckmage-plugin");
+		getIconUrl(plugin, "tower.png");
+		expect(getLastPath()).toBe("plugins/duckmage-plugin/icons/tower.png");
+	});
+
+	it("uses vault iconsFolder when icon is in vaultIconsSet", () => {
+		const { plugin, getLastPath } = makePluginForIcon(["village.png"], "custom-icons", "plugins/duckmage-plugin");
+		getIconUrl(plugin, "village.png");
+		expect(getLastPath()).toBe("custom-icons/village.png");
+	});
+
+	it("uses plugin icons dir for icons not in vaultIconsSet even when others are", () => {
+		const { plugin, getLastPath } = makePluginForIcon(["village.png"], "custom-icons", "plugins/duckmage-plugin");
+		getIconUrl(plugin, "castle.png");
+		expect(getLastPath()).toBe("plugins/duckmage-plugin/icons/castle.png");
+	});
+
+	it("normalises iconsFolder by stripping leading/trailing slashes", () => {
+		const { plugin, getLastPath } = makePluginForIcon(["icon.png"], "/my-icons/", "plugins/duckmage-plugin");
+		getIconUrl(plugin, "icon.png");
+		expect(getLastPath()).toBe("my-icons/icon.png");
+	});
+
+	it("returns a string (the resource path)", () => {
+		const { plugin } = makePluginForIcon([], "icons", "plugins/duckmage-plugin");
+		const result = getIconUrl(plugin, "ruins.png");
+		expect(typeof result).toBe("string");
+		expect(result.length).toBeGreaterThan(0);
 	});
 });

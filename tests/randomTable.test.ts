@@ -82,6 +82,26 @@ describe("parseRandomTable", () => {
 		expect(result.dice).toBe(6);
 		expect(result.entries).toHaveLength(0);
 	});
+
+	it("parses linked-folder from frontmatter", () => {
+		const content = `---\ndice: 6\nlinked-folder: world/towns\n---\n\n| Result | Weight |\n|--------|--------|\n| A | 1 |`;
+		expect(parseRandomTable(content).linkedFolder).toBe("world/towns");
+	});
+
+	it("leaves linkedFolder undefined when not in frontmatter", () => {
+		const content = `---\ndice: 6\n---\n\n| Result | Weight |\n|--------|--------|\n| A | 1 |`;
+		expect(parseRandomTable(content).linkedFolder).toBeUndefined();
+	});
+
+	it("trims whitespace from linked-folder value", () => {
+		const content = `---\ndice: 6\nlinked-folder:   world/towns  \n---`;
+		expect(parseRandomTable(content).linkedFolder).toBe("world/towns");
+	});
+
+	it("leaves linkedFolder undefined when there is no frontmatter block", () => {
+		const content = `| Result | Weight |\n|--------|--------|\n| A | 1 |`;
+		expect(parseRandomTable(content).linkedFolder).toBeUndefined();
+	});
 });
 
 // ── rollOnTable ───────────────────────────────────────────────────────────────

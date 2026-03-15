@@ -443,6 +443,10 @@ export class RandomTableView extends ItemView {
         row.setText(node.file.basename);
         row.title = node.file.path;
         row.addEventListener("click", () => this.loadTable(node.file));
+        row.addEventListener("contextmenu", (e: MouseEvent) => {
+          e.preventDefault();
+          this.showFileContextMenu(e, node.file);
+        });
       }
     }
   }
@@ -496,6 +500,41 @@ export class RandomTableView extends ItemView {
         new Notice(
           `Encounters table: "${folderPath}" ${encExcluded ? "included" : "excluded"}.`,
         );
+        await this.loadList();
+      });
+    });
+
+    menu.showAtMouseEvent(e);
+  }
+
+  private showFileContextMenu(e: MouseEvent, file: TFile): void {
+    const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const rollExcluded = fm?.["roll-filter"] === false;
+    const encExcluded = fm?.["encounter-filter"] === false;
+    const menu = new Menu();
+
+    menu.addItem((item) => {
+      item.setTitle(rollExcluded ? "Include in roll picker" : "Exclude from roll picker");
+      item.setIcon("dice");
+      item.onClick(async () => {
+        await this.app.fileManager.processFrontMatter(file, (fmData) => {
+          if (rollExcluded) delete fmData["roll-filter"];
+          else fmData["roll-filter"] = false;
+        });
+        new Notice(`Roll picker: "${file.basename}" ${rollExcluded ? "included" : "excluded"}.`);
+        await this.loadList();
+      });
+    });
+
+    menu.addItem((item) => {
+      item.setTitle(encExcluded ? "Include in encounters table" : "Exclude from encounters table");
+      item.setIcon("sword");
+      item.onClick(async () => {
+        await this.app.fileManager.processFrontMatter(file, (fmData) => {
+          if (encExcluded) delete fmData["encounter-filter"];
+          else fmData["encounter-filter"] = false;
+        });
+        new Notice(`Encounters table: "${file.basename}" ${encExcluded ? "included" : "excluded"}.`);
         await this.loadList();
       });
     });

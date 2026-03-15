@@ -7,6 +7,7 @@ import {
 	getSectionContent,
 	getAllSectionData,
 	setSectionContent,
+	addBacklinkToFile,
 } from "../src/sections";
 
 /** Build a minimal mock App backed by an in-memory string. */
@@ -262,5 +263,95 @@ describe("setSectionContent", () => {
 	it("is a no-op when file does not exist", async () => {
 		const { app } = makeApp("hex.md", "");
 		await expect(setSectionContent(app, "MISSING.md", "Description", "text")).resolves.toBeUndefined();
+	});
+});
+
+// ── addBacklinkToFile ─────────────────────────────────────────────────────────
+
+/** Build an app with two independent in-memory files for backlink tests. */
+function makeAppForBacklink(
+	hexPath: string,
+	hexContent: string,
+	targetPath: string,
+	targetContent: string,
+	/** If provided, the target's metadata cache will contain a link to this resolved path. */
+	existingBacklinkToHex = false,
+) {
+	const hexFile = Object.create(TFile.prototype) as TFile;
+	hexFile.path = hexPath;
+
+	const targetFile = Object.create(TFile.prototype) as TFile;
+	targetFile.path = targetPath;
+
+	const contents: Record<string, string> = {
+		[hexPath]: hexContent,
+		[targetPath]: targetContent,
+	};
+
+	const app = {
+		vault: {
+			getAbstractFileByPath: (p: string) => {
+				if (p === hexPath) return hexFile;
+				if (p === targetPath) return targetFile;
+				return null;
+			},
+			read: vi.fn(async (f: TFile) => contents[f.path] ?? ""),
+			modify: vi.fn(async (f: TFile, content: string) => { contents[f.path] = content; }),
+		},
+		metadataCache: {
+			getFileCache: vi.fn((f: TFile) => {
+				if (f === targetFile && existingBacklinkToHex) {
+					return { links: [{ link: hexPath }] };
+				}
+				return null;
+			}),
+			getFirstLinkpathDest: vi.fn((_link: string, _src: string) =>
+				existingBacklinkToHex ? hexFile : null,
+			),
+			fileToLinktext: vi.fn((f: TFile, _src: string) => f.path.replace(/\.md$/, "")),
+		},
+	} as unknown as import("obsidian").App;
+
+	return { app, getContent: (path: string) => contents[path] };
+}
+
+describe("addBacklinkToFile", () => {
+	it("is a no-op when hexFile does not exist", async () => {
+		const { app, getContent } = makeAppForBacklink("hex/1_1.md", "", "notes/town.md", "Town content.");
+		await addBacklinkToFile(app, "notes/town.md", "MISSING.md");
+		expect(getContent("notes/town.md")).toBe("Town content.");
+	});
+
+	it("is a no-op when targetFile does not exist", async () => {
+		const { app } = makeAppForBacklink("hex/1_1.md", "", "notes/town.md", "Town content.");
+		await expect(addBacklinkToFile(app, "MISSING.md", "hex/1_1.md")).resolves.toBeUndefined();
+	});
+
+	it("appends a wiki-link to the target file", async () => {
+		const { app, getContent } = makeAppForBacklink("hex/1_1.md", "", "notes/town.md", "Town content.");
+		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
+		expect(getContent("notes/town.md")).toContain("[[hex/1_1]]");
+	});
+
+	it("separates the link from existing content with a blank line", async () => {
+		const { app, getContent } = makeAppForBacklink("hex/1_1.md", "", "notes/town.md", "Town content.");
+		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
+		expect(getContent("notes/town.md")).toContain("Town content.\n\n[[hex/1_1]]");
+	});
+
+	it("does not add a blank line prefix when target is empty", async () => {
+		const { app, getContent } = makeAppForBacklink("hex/1_1.md", "", "notes/town.md", "");
+		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
+		expect(getContent("notes/town.md")).toBe("[[hex/1_1]]\n");
+	});
+
+	it("does not append when the target already links to the hex (via cache)", async () => {
+		const { app, getContent } = makeAppForBacklink(
+			"hex/1_1.md", "", "notes/town.md", "[[hex/1_1]]\n",
+			true, // existingBacklinkToHex
+		);
+		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
+		// modify should never have been called
+		expect(app.vault.modify).not.toHaveBeenCalled();
 	});
 });
