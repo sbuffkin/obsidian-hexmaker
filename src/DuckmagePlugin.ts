@@ -218,7 +218,7 @@ export default class DuckmagePlugin extends Plugin {
 				try {
 					await this.app.vault.create(
 						path,
-						makeTableTemplate(this.settings.defaultTableDice, 1, { "table-type": sectionType, "roll-filter": false, "encounter-filter": false }, this.buildRollerLink(path)),
+						makeTableTemplate(this.settings.defaultTableDice, { "table-type": sectionType, "roll-filter": false, "encounter-filter": false }, this.buildRollerLink(path)),
 					);
 				} catch { /* ignore */ }
 			}
@@ -236,7 +236,7 @@ export default class DuckmagePlugin extends Plugin {
 					try {
 						await this.app.vault.create(
 							path,
-							makeTableTemplate(this.settings.defaultTableDice, 1, { terrain: entry.name, "table-type": tableType, "roll-filter": false, "encounter-filter": false }, this.buildRollerLink(path)),
+							makeTableTemplate(this.settings.defaultTableDice, { terrain: entry.name, "table-type": tableType, "roll-filter": false, "encounter-filter": false }, this.buildRollerLink(path)),
 						);
 					} catch { /* ignore */ }
 				}

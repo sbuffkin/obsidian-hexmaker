@@ -2254,3 +2254,7 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
     width: 100%;
     font-size: 0.85em;
 }
+
+
+/* Confirm delete modal */
+.duckmage-confirm-btn-row { display: flex; gap: 8px; margin-top: 12px; }

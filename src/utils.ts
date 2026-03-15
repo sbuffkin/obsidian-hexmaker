@@ -4,12 +4,8 @@ export function normalizeFolder(path: string): string {
 	return path.replace(/^\/+|\/+$/g, "") || "";
 }
 
-export function makeTableTemplate(dice: number, exampleRows = 3, extraFrontmatter?: Record<string, string | boolean | number>, preamble?: string): string {
-	const rows = exampleRows === 1
-		? "|  | 1 |"
-		: Array.from({ length: exampleRows }, (_, i) =>
-			`| Example result ${String.fromCharCode(65 + i)} | 1 |`,
-		).join("\n");
+export function makeTableTemplate(dice: number, extraFrontmatter?: Record<string, string | boolean | number>, preamble?: string): string {
+	const rows = "|  | 1 |";
 	const extra = extraFrontmatter
 		? Object.entries(extraFrontmatter).map(([k, v]) => `${k}: ${v}`).join("\n") + "\n"
 		: "";

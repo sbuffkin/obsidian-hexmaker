@@ -1,6 +1,7 @@
 import {
   ItemView,
   Menu,
+  Modal,
   Notice,
   TFile,
   ViewStateResult,
@@ -160,7 +161,6 @@ export class RandomTableView extends ItemView {
             const rollerLink = this.plugin.buildRollerLink(newPath);
             content = makeTableTemplate(
               this.plugin.settings.defaultTableDice,
-              3,
               undefined,
               rollerLink,
             );
@@ -511,6 +511,7 @@ export class RandomTableView extends ItemView {
     const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const rollExcluded = fm?.["roll-filter"] === false;
     const encExcluded = fm?.["encounter-filter"] === false;
+    const isDefaultTable = fm?.["table-type"] != null;
     const menu = new Menu();
 
     menu.addItem((item) => {
@@ -538,6 +539,25 @@ export class RandomTableView extends ItemView {
         await this.loadList();
       });
     });
+
+    if (!isDefaultTable) {
+      menu.addSeparator();
+
+      menu.addItem((item) => {
+        item.setTitle("Delete table");
+        item.setIcon("trash");
+        item.onClick(() => {
+          new ConfirmDeleteModal(this.app, file.basename, async () => {
+            await this.app.fileManager.trashFile(file);
+            if (this.activeFile === file) {
+              this.activeFile = null;
+              this.detailEl?.empty();
+            }
+            await this.loadList();
+          }).open();
+        });
+      });
+    }
 
     menu.showAtMouseEvent(e);
   }
@@ -808,5 +828,42 @@ export class RandomTableView extends ItemView {
         navigator.clipboard.writeText(result),
       );
     }
+  }
+}
+
+
+// ── ConfirmDeleteModal ────────────────────────────────────────────────────────
+
+class ConfirmDeleteModal extends Modal {
+  constructor(
+    app: import("obsidian").App,
+    private readonly tableName: string,
+    private readonly onConfirm: () => Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.createEl("p", {
+      text: `Delete "${this.tableName}"? This cannot be undone.`,
+    });
+    const btnRow = contentEl.createDiv({ cls: "duckmage-confirm-btn-row" });
+
+    const deleteBtn = btnRow.createEl("button", {
+      text: "Delete",
+      cls: "mod-warning",
+    });
+    deleteBtn.addEventListener("click", async () => {
+      this.close();
+      await this.onConfirm();
+    });
+
+    const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => this.close());
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }
