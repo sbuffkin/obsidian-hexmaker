@@ -1715,6 +1715,18 @@
 .duckmage-rt-folder-children {
     padding-left: 12px;
 }
+.duckmage-rt-list-item.is-dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+}
+.duckmage-rt-folder-header.is-drag-over {
+    background: var(--background-modifier-hover);
+    outline: 2px dashed var(--color-accent);
+    color: var(--text-normal);
+}
+.duckmage-rt-list.is-drag-over-root {
+    outline: 1px dashed var(--background-modifier-border-hover);
+}
 
 .duckmage-rt-list-footer {
     padding: 6px 8px;
@@ -1788,6 +1800,25 @@
     background: var(--background-secondary);
     color: var(--text-normal);
 }
+
+/* ── Random table description ───────────────────────────────────────────── */
+
+.duckmage-rt-desc-section {
+    margin-bottom: 12px;
+}
+.duckmage-rt-desc-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.duckmage-rt-desc-body {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    padding: 6px 8px;
+    border-left: 2px solid var(--background-modifier-border);
+}
+.duckmage-rt-desc-body p:first-child { margin-top: 0; }
+.duckmage-rt-desc-body p:last-child { margin-bottom: 0; }
 
 /* ── Random table (odds table) ─────────────────────────────────────────── */
 
@@ -2234,6 +2265,23 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 
 .duckmage-table-editor-folder-input {
     flex: 1;
+}
+
+/* Description row in editor modal */
+.duckmage-table-editor-desc-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+.duckmage-table-editor-desc-label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+.duckmage-table-editor-desc-input {
+    width: 100%;
+    resize: vertical;
+    font-size: 0.9em;
 }
 
 /* ── Random table view — clickable entry links ─────────────────────────────── */

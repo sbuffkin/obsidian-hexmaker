@@ -102,6 +102,18 @@ describe("parseRandomTable", () => {
 		const content = `| Result | Weight |\n|--------|--------|\n| A | 1 |`;
 		expect(parseRandomTable(content).linkedFolder).toBeUndefined();
 	});
+
+	it("strips wiki-link syntax from result cells", () => {
+		const content = `| Result | Weight |\n|--------|--------|\n| [[Riverdale]] | 1 |\n| [[path/to/Town]] | 2 |`;
+		const result = parseRandomTable(content);
+		expect(result.entries[0].result).toBe("Riverdale");
+		expect(result.entries[1].result).toBe("path/to/Town");
+	});
+
+	it("leaves plain result cells unchanged", () => {
+		const content = `| Result | Weight |\n|--------|--------|\n| Plain text | 1 |`;
+		expect(parseRandomTable(content).entries[0].result).toBe("Plain text");
+	});
 });
 
 // ── rollOnTable ───────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import {
   ItemView,
+  MarkdownRenderer,
   Menu,
   Modal,
   Notice,
@@ -117,6 +118,28 @@ export class RandomTableView extends ItemView {
 
     this.listEl = leftCol.createDiv({ cls: "duckmage-rt-list" });
 
+    // Root drop zone: drag a table file onto the list background to move it to the top-level tables folder
+    let listDragCounter = 0;
+    this.listEl.addEventListener("dragenter", (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("text/plain")) return;
+      listDragCounter++;
+      this.listEl!.addClass("is-drag-over-root");
+    });
+    this.listEl.addEventListener("dragleave", () => {
+      if (--listDragCounter <= 0) { listDragCounter = 0; this.listEl!.removeClass("is-drag-over-root"); }
+    });
+    this.listEl.addEventListener("dragover", (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("text/plain")) return;
+      e.preventDefault();
+    });
+    this.listEl.addEventListener("drop", async (e: DragEvent) => {
+      e.preventDefault();
+      listDragCounter = 0;
+      this.listEl!.removeClass("is-drag-over-root");
+      const srcPath = e.dataTransfer?.getData("text/plain") ?? "";
+      await this.moveFileTo(srcPath, normalizeFolder(this.plugin.settings.tablesFolder));
+    });
+
     const listFooter = leftCol.createDiv({ cls: "duckmage-rt-list-footer" });
     const newRow = listFooter.createDiv({ cls: "duckmage-rt-new-row" });
     const newInput = newRow.createEl("input", {
@@ -166,24 +189,6 @@ export class RandomTableView extends ItemView {
             );
           }
           file = await this.app.vault.create(newPath, content);
-          // Add roller backlinks to existing notes in the linked folder
-          if (srcFolder) {
-            const vault = encodeURIComponent(this.app.vault.getName());
-            const tableEnc = encodeURIComponent(newPath);
-            const marker = `duckmage-roll?vault=${vault}&file=${tableEnc}`;
-            const link = `[🎲 Open in Duckmage Roller](obsidian://${marker})`;
-            const folderFiles = this.app.vault
-              .getMarkdownFiles()
-              .filter((f) => f.parent?.path === srcFolder);
-            for (const noteFile of folderFiles) {
-              const nc = await this.app.vault.read(noteFile);
-              if (nc.includes(marker)) continue;
-              await this.app.vault.modify(
-                noteFile,
-                nc.trimEnd() + (nc.trim() ? "\n\n" : "") + link + "\n",
-              );
-            }
-          }
         } catch (err) {
           new Notice(`Could not create ${newPath}: ${err}`);
           return;
@@ -420,6 +425,32 @@ export class RandomTableView extends ItemView {
 
         this.renderTreeNodes(childrenEl, node.children, forceExpanded);
 
+        // Folder drop target — accept dragged table files
+        let dragCounter = 0;
+        folderEl.addEventListener("dragenter", (e: DragEvent) => {
+          if (!e.dataTransfer?.types.includes("text/plain")) return;
+          dragCounter++;
+          folderHeader.addClass("is-drag-over");
+        });
+        folderEl.addEventListener("dragleave", () => {
+          if (--dragCounter <= 0) { dragCounter = 0; folderHeader.removeClass("is-drag-over"); }
+        });
+        folderEl.addEventListener("dragover", (e: DragEvent) => {
+          if (!e.dataTransfer?.types.includes("text/plain")) return;
+          e.preventDefault();
+          e.stopPropagation(); // don't let the root list show its highlight
+        });
+        folderEl.addEventListener("drop", async (e: DragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragCounter = 0;
+          folderHeader.removeClass("is-drag-over");
+          const srcPath = e.dataTransfer?.getData("text/plain") ?? "";
+          const tblFolder = normalizeFolder(this.plugin.settings.tablesFolder);
+          const destFolder = tblFolder ? `${tblFolder}/${node.path}` : node.path;
+          await this.moveFileTo(srcPath, destFolder);
+        });
+
         folderHeader.addEventListener("contextmenu", (e: MouseEvent) => {
           e.preventDefault();
           this.showFolderContextMenu(e, node.path);
@@ -447,6 +478,13 @@ export class RandomTableView extends ItemView {
           e.preventDefault();
           this.showFileContextMenu(e, node.file);
         });
+        row.draggable = true;
+        row.addEventListener("dragstart", (e: DragEvent) => {
+          e.dataTransfer?.setData("text/plain", node.file.path);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+          row.addClass("is-dragging");
+        });
+        row.addEventListener("dragend", () => row.removeClass("is-dragging"));
       }
     }
   }
@@ -562,6 +600,26 @@ export class RandomTableView extends ItemView {
     menu.showAtMouseEvent(e);
   }
 
+  // ── Move ──────────────────────────────────────────────────────────────────
+
+  private async moveFileTo(srcPath: string, destFolderPath: string): Promise<void> {
+    const srcFile = this.app.vault.getAbstractFileByPath(srcPath);
+    if (!(srcFile instanceof TFile)) return;
+    const newPath = destFolderPath ? `${destFolderPath}/${srcFile.name}` : srcFile.name;
+    if (srcFile.path === newPath) return;
+    const wasActive = this.activeFile === srcFile;
+    try {
+      await this.app.fileManager.renameFile(srcFile, newPath);
+      await this.loadList();
+      if (wasActive) {
+        const newFile = this.app.vault.getAbstractFileByPath(newPath);
+        if (newFile instanceof TFile) this.loadTable(newFile);
+      }
+    } catch (err) {
+      new Notice(`Could not move "${srcFile.basename}": ${err}`);
+    }
+  }
+
   // ── Detail ────────────────────────────────────────────────────────────────
 
   private async loadTable(file: TFile): Promise<void> {
@@ -607,6 +665,14 @@ export class RandomTableView extends ItemView {
       ).open();
     });
 
+    const openNoteLink = header.createEl("a", {
+      text: "Open note",
+      cls: "duckmage-rt-edit-link",
+    });
+    openNoteLink.addEventListener("click", () => {
+      this.app.workspace.getLeaf(false).openFile(file);
+    });
+
     const dieSelect = header.createEl("select", {
       cls: "duckmage-rt-die-select",
     });
@@ -626,6 +692,25 @@ export class RandomTableView extends ItemView {
       await this.app.vault.modify(file, updated);
       await this.renderDetail();
     });
+
+    // ── Description ────────────────────────────────────────────────────
+    if (table.description) {
+      const descSection = this.detailEl.createDiv({ cls: "duckmage-rt-desc-section" });
+      const descHeader = descSection.createDiv({ cls: "duckmage-rt-desc-header" });
+      const descCollapseBtn = descHeader.createEl("button", {
+        text: "▼",
+        cls: "duckmage-rt-collapse-btn",
+      });
+      descCollapseBtn.title = "Collapse description";
+      const descBody = descSection.createDiv({ cls: "duckmage-rt-desc-body" });
+      MarkdownRenderer.render(this.app, table.description, descBody, file.path, this);
+      descCollapseBtn.addEventListener("click", () => {
+        const collapsed = descBody.style.display === "none";
+        descBody.style.display = collapsed ? "" : "none";
+        descCollapseBtn.setText(collapsed ? "▼" : "▶");
+        descCollapseBtn.title = collapsed ? "Collapse description" : "Expand description";
+      });
+    }
 
     // ── Odds table ─────────────────────────────────────────────────────
     const tableSection = this.detailEl.createDiv({
@@ -706,6 +791,7 @@ export class RandomTableView extends ItemView {
           copyBtn.setText("✓");
           setTimeout(() => copyBtn.setText("⎘"), 1200);
         });
+
       });
     }
 

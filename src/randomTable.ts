@@ -7,6 +7,7 @@ export interface RandomTable {
 	dice: number; // 0 = no die mapping, show % only
 	entries: RandomTableEntry[];
 	linkedFolder?: string;
+	description?: string; // user-authored blurb shown above the table
 }
 
 /** Parse a random-table markdown file into a RandomTable. */
@@ -21,6 +22,15 @@ export function parseRandomTable(content: string): RandomTable {
 		const lfMatch = /^linked-folder:\s*(.+)$/m.exec(fmMatch[1]);
 		if (lfMatch) linkedFolder = lfMatch[1].trim();
 	}
+
+	// Extract user description from preamble (text between frontmatter and table, excluding roller link)
+	const afterFm = fmMatch ? content.slice(fmMatch[0].length) : content;
+	const firstTableLine = /^[ \t]*\|/m.exec(afterFm);
+	const preambleText = firstTableLine ? afterFm.slice(0, firstTableLine.index) : "";
+	const descriptionRaw = preambleText
+		.replace(/\[.*?\]\(obsidian:\/\/duckmage-roll[^)]*\)/g, "")
+		.trim();
+	const description = descriptionRaw || undefined;
 
 	// Find first markdown table — lines that start with |
 	const lines = content.split("\n");
@@ -48,13 +58,15 @@ export function parseRandomTable(content: string): RandomTable {
 			continue;
 		}
 
-		const result = cells[0] ?? "";
+		// Strip wiki-link syntax so [[Note Name]] → "Note Name"
+		const rawResult = cells[0] ?? "";
+		const result = rawResult.replace(/^\[\[(.+?)(?:\|[^\]]+)?\]\]$/, "$1");
 		const rawWeight = cells[1] ?? "1";
 		const weight = Math.max(1, parseInt(rawWeight, 10) || 1);
 		if (result) entries.push({ result, weight });
 	}
 
-	return { dice, entries, linkedFolder };
+	return { dice, entries, linkedFolder, description };
 }
 
 /** Weighted random selection. Returns a random entry. */

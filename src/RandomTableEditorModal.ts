@@ -86,6 +86,14 @@ export class RandomTableEditorModal extends Modal {
 		folderInput.value = table.linkedFolder ?? "";
 		folderInput.placeholder = "world/towns (leave blank for none)";
 
+		// ── Description ───────────────────────────────────────────────────
+		const descRow = contentEl.createDiv({ cls: "duckmage-table-editor-desc-row" });
+		descRow.createEl("label", { text: "Description", cls: "duckmage-table-editor-desc-label" });
+		const descInput = descRow.createEl("textarea", { cls: "duckmage-table-editor-desc-input" });
+		descInput.placeholder = "Optional description shown above the table…";
+		descInput.value = table.description ?? "";
+		descInput.rows = 3;
+
 		// ── Filter settings ───────────────────────────────────────────────
 		const filterSection = contentEl.createDiv({ cls: "duckmage-table-editor-filter-section" });
 		const rollFilterRow = filterSection.createDiv({ cls: "duckmage-table-editor-filter-row" });
@@ -216,7 +224,12 @@ export class RandomTableEditorModal extends Modal {
 				await this.retireDeletedEntries(originalResults, entries, linkedFolder);
 				await this.syncLinkedFolder(entries, linkedFolder);
 			}
-			const newContent = this.buildContent(updatedFm, preamble, entries);
+			// Rebuild preamble: preserve roller link, replace user description
+			const rollerLinkMatch = preamble.match(/\[.*?\]\(obsidian:\/\/duckmage-roll[^)]*\)/);
+			const rollerLink = rollerLinkMatch ? rollerLinkMatch[0] : "";
+			const newDescription = descInput.value.trim();
+			const newPreamble = [rollerLink, newDescription].filter(Boolean).join("\n\n");
+			const newContent = this.buildContent(updatedFm, newPreamble, entries, linkedFolder || undefined);
 			try {
 				await this.app.vault.modify(this.file, newContent);
 				this.onSaved?.();
@@ -249,24 +262,22 @@ export class RandomTableEditorModal extends Modal {
 			.filter(f => f.parent?.path === folderPath && !f.basename.startsWith("_"));
 		const existingNames = new Set(existing.map(f => f.basename));
 
-		// For each entry: create note if missing, ensure backlink
+		// For each entry: create note if missing
 		for (const entry of entries) {
 			const notePath = `${folderPath}/${entry.result}.md`;
-			let noteFile = this.app.vault.getAbstractFileByPath(notePath) as TFile | null;
+			const noteFile = this.app.vault.getAbstractFileByPath(notePath);
 			if (!noteFile) {
 				try {
-					noteFile = await this.app.vault.create(notePath, `# ${entry.result}\n`) as TFile;
+					await this.app.vault.create(notePath, `# ${entry.result}\n`);
 				} catch { continue; }
 			}
-			await this.ensureTableBacklink(noteFile as TFile);
 		}
 
-		// For each note without a matching entry: add entry + backlink
+		// For each note without a matching entry: add entry
 		const entryNames = new Set(entries.map(e => e.result));
 		for (const noteFile of existing) {
 			if (!entryNames.has(noteFile.basename)) {
 				entries.push({ result: noteFile.basename, weight: 1 });
-				await this.ensureTableBacklink(noteFile);
 			}
 		}
 	}
@@ -296,20 +307,6 @@ export class RandomTableEditorModal extends Modal {
 			const newPath = `${folderPath}/_${result}.md`;
 			try { await this.app.fileManager.renameFile(noteFile, newPath); } catch { /* already renamed or missing */ }
 		}
-	}
-
-	/** Append the roller backlink for this table file to a note, if not already present. */
-	private async ensureTableBacklink(noteFile: TFile): Promise<void> {
-		const vault = encodeURIComponent(this.app.vault.getName());
-		const tableEnc = encodeURIComponent(this.file.path);
-		const marker = `duckmage-roll?vault=${vault}&file=${tableEnc}`;
-		const content = await this.app.vault.read(noteFile);
-		if (content.includes(marker)) return;
-		const link = `[🎲 Open in Duckmage Roller](obsidian://${marker})`;
-		await this.app.vault.modify(
-			noteFile,
-			content.trimEnd() + (content.trim() ? "\n\n" : "") + link + "\n",
-		);
 	}
 
 	private makeDraggable(): void {
@@ -412,8 +409,8 @@ export class RandomTableEditorModal extends Modal {
 		return afterFm.slice(0, tableMatch.index).trim();
 	}
 
-	private buildContent(frontmatter: string, preamble: string, entries: RandomTableEntry[]): string {
-		const rows = entries.map(e => `| ${e.result} | ${e.weight} |`).join("\n");
+	private buildContent(frontmatter: string, preamble: string, entries: RandomTableEntry[], linkedFolder?: string): string {
+		const rows = entries.map(e => `| ${linkedFolder ? `[[${e.result}]]` : e.result} | ${e.weight} |`).join("\n");
 		const tableBlock = `| Result | Weight |\n|--------|--------|\n${rows}`;
 		const parts: string[] = [];
 		if (frontmatter) parts.push(frontmatter);
