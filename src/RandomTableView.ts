@@ -268,6 +268,31 @@ export class RandomTableView extends ItemView {
       }),
     );
 
+    // ── Auto-sync: note renamed/deleted in a linked folder → rebuild table entries ──
+    this.registerEvent(
+      this.app.vault.on("rename", async (file, oldPath) => {
+        if (!(file instanceof TFile)) return;
+        const oldDir = normalizeFolder(oldPath.slice(0, oldPath.lastIndexOf("/")));
+        const newDir = normalizeFolder(file.parent?.path ?? "");
+        for (const dir of new Set([oldDir, newDir])) {
+          const tableFilePath = this.linkedFolderMap.get(dir);
+          if (!tableFilePath) continue;
+          const tableFile = this.app.vault.getAbstractFileByPath(tableFilePath);
+          if (tableFile instanceof TFile) await this.autoSyncLinkedFolder(tableFile);
+        }
+      }),
+    );
+    this.registerEvent(
+      this.app.vault.on("delete", async (file) => {
+        if (!(file instanceof TFile)) return;
+        const dir = normalizeFolder(file.path.slice(0, file.path.lastIndexOf("/")));
+        const tableFilePath = this.linkedFolderMap.get(dir);
+        if (!tableFilePath) return;
+        const tableFile = this.app.vault.getAbstractFileByPath(tableFilePath);
+        if (tableFile instanceof TFile) await this.autoSyncLinkedFolder(tableFile);
+      }),
+    );
+
     // ── Live sync: note created in a linked folder → add entry to table ──
     this.registerEvent(
       this.app.vault.on("create", async (createdFile) => {
@@ -707,7 +732,44 @@ export class RandomTableView extends ItemView {
       .forEach((el) => {
         el.toggleClass("is-active", el.title === file.path);
       });
+    await this.autoSyncLinkedFolder(file);
     await this.renderDetail();
+  }
+
+  /**
+   * If tableFile has a linked-folder, rebuild its entries from the folder:
+   * keep existing entries (preserving weights), add new notes, remove stale ones.
+   * No-op when there's no linked folder or nothing has changed.
+   */
+  private async autoSyncLinkedFolder(tableFile: TFile): Promise<void> {
+    const content = await this.app.vault.read(tableFile);
+    const table = parseRandomTable(content);
+    if (!table.linkedFolder) return;
+
+    const lf = normalizeFolder(table.linkedFolder);
+    const folderFiles = this.app.vault.getMarkdownFiles()
+      .filter(f => f.parent?.path === lf && !f.basename.startsWith("_"))
+      .sort((a, b) => a.basename.localeCompare(b.basename));
+
+    const folderBasenames = new Set(folderFiles.map(f => f.basename));
+    const currentNames = new Set(table.entries.map(e => e.result));
+
+    const hasNew = folderFiles.some(f => !currentNames.has(f.basename));
+    const hasStale = table.entries.some(e => !folderBasenames.has(e.result));
+    if (!hasNew && !hasStale) return;
+
+    const kept = table.entries.filter(e => folderBasenames.has(e.result));
+    const added = folderFiles
+      .filter(f => !currentNames.has(f.basename))
+      .map(f => ({ result: f.basename, weight: 1 }));
+    const newEntries = [...kept, ...added];
+
+    const rows = newEntries.map(e => `| ${e.result} | ${e.weight} |`).join("\n");
+    const updated = content.replace(
+      /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
+      `$1${rows}\n`,
+    );
+    if (updated !== content) await this.app.vault.modify(tableFile, updated);
   }
 
   private renderDetailSeq = 0;
@@ -779,6 +841,7 @@ export class RandomTableView extends ItemView {
         cls: "duckmage-rt-collapse-btn",
       });
       descCollapseBtn.title = "Collapse description";
+      descHeader.createSpan({ text: "Description", cls: "duckmage-rt-section-label" });
       const descBody = descSection.createDiv({ cls: "duckmage-rt-desc-body" });
       MarkdownRenderer.render(this.app, table.description, descBody, file.path, this);
       descCollapseBtn.addEventListener("click", () => {

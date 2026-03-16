@@ -1826,6 +1826,13 @@ div.duckmage-terrain-preview-icon {
     align-items: center;
     margin-bottom: 4px;
 }
+.duckmage-rt-section-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    user-select: none;
+}
 .duckmage-rt-desc-body {
     font-size: 0.9em;
     color: var(--text-muted);
