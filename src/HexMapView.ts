@@ -67,6 +67,7 @@ export class HexMapView extends ItemView {
   private paintIconName: string | null = null;
   private terrainPickMode = false;
   private paintBrushSize: 1 | 3 | 7 = 1;
+  private selectedHex: { x: number; y: number } | null = null;
   // Per-hex write queues: always stores the *latest* desired value so rapid
   // repaints of the same hex coalesce into at most one queued write.
   private pendingTerrainWrites = new Map<
@@ -907,6 +908,18 @@ export class HexMapView extends ItemView {
     }
   }
 
+  setSelectedHex(x: number, y: number): void {
+    if (this.selectedHex) {
+      this.viewportEl
+        ?.querySelector<HTMLElement>(`[data-x="${this.selectedHex.x}"][data-y="${this.selectedHex.y}"]`)
+        ?.removeClass("is-selected");
+    }
+    this.selectedHex = { x, y };
+    this.viewportEl
+      ?.querySelector<HTMLElement>(`[data-x="${x}"][data-y="${y}"]`)
+      ?.addClass("is-selected");
+  }
+
   centerOnHex(x: number, y: number): void {
     const hexEl = this.viewportEl?.querySelector<HTMLElement>(
       `[data-x="${x}"][data-y="${y}"]`,
@@ -994,6 +1007,9 @@ export class HexMapView extends ItemView {
       // Tag override icons so the SVG overlay can elevate them above roads/rivers
       if (iconOverride) hexEl.dataset.iconOverride = iconOverride;
 
+      if (this.selectedHex?.x === x && this.selectedHex?.y === y)
+        hexEl.addClass("is-selected");
+
       hexEl.createSpan({ cls: "duckmage-hex-label", text: `${x},${y}` });
       if (exists && !terrainEntry)
         hexEl.createSpan({ cls: "duckmage-hex-dot" });
@@ -1038,6 +1054,7 @@ export class HexMapView extends ItemView {
       this.onHexDeleteClick(x, y);
       return;
     }
+    this.setSelectedHex(x, y);
     const modal = new HexEditorModal(
       this.app,
       this.plugin,
@@ -1051,6 +1068,15 @@ export class HexMapView extends ItemView {
         } else {
           // Link-only change — defer so metadata cache has time to repopulate after vault.modify
           setTimeout(() => this.renderGrid(), 300);
+        }
+      },
+      (nx, ny) => this.setSelectedHex(nx, ny),
+      () => {
+        if (this.selectedHex) {
+          this.viewportEl
+            ?.querySelector<HTMLElement>(`[data-x="${this.selectedHex.x}"][data-y="${this.selectedHex.y}"]`)
+            ?.removeClass("is-selected");
+          this.selectedHex = null;
         }
       },
     );

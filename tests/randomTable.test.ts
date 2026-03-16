@@ -110,6 +110,19 @@ describe("parseRandomTable", () => {
 		expect(result.entries[1].result).toBe("path/to/Town");
 	});
 
+	it("sets isLink=true for wiki-link cells in a non-linked-folder table", () => {
+		const content = `| Result | Weight |\n|--------|--------|\n| [[world/towns/Millhaven]] | 1 |\n| Plain | 1 |`;
+		const result = parseRandomTable(content);
+		expect(result.entries[0].isLink).toBe(true);
+		expect(result.entries[1].isLink).toBeUndefined();
+	});
+
+	it("does not set isLink for wiki-link cells when linkedFolder is present", () => {
+		const content = `---\ndice: 6\nlinked-folder: world/towns\n---\n\n| Result | Weight |\n|--------|--------|\n| [[Millhaven]] | 1 |`;
+		const result = parseRandomTable(content);
+		expect(result.entries[0].isLink).toBeUndefined();
+	});
+
 	it("leaves plain result cells unchanged", () => {
 		const content = `| Result | Weight |\n|--------|--------|\n| Plain text | 1 |`;
 		expect(parseRandomTable(content).entries[0].result).toBe("Plain text");

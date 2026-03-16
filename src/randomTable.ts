@@ -1,6 +1,7 @@
 export interface RandomTableEntry {
 	result: string;
 	weight: number;
+	isLink?: boolean; // true when the result is a vault-relative note path (written as [[...]])
 }
 
 export interface RandomTable {
@@ -60,10 +61,12 @@ export function parseRandomTable(content: string): RandomTable {
 
 		// Strip wiki-link syntax so [[Note Name]] → "Note Name"
 		const rawResult = cells[0] ?? "";
-		const result = rawResult.replace(/^\[\[(.+?)(?:\|[^\]]+)?\]\]$/, "$1");
+		const linkMatch = /^\[\[(.+?)(?:\|[^\]]+)?\]\]$/.exec(rawResult);
+		const result = linkMatch ? linkMatch[1] : rawResult;
+		const isLink = linkMatch !== null && !linkedFolder; // linked-folder entries already tracked separately
 		const rawWeight = cells[1] ?? "1";
 		const weight = Math.max(1, parseInt(rawWeight, 10) || 1);
-		if (result) entries.push({ result, weight });
+		if (result) entries.push({ result, weight, ...(isLink ? { isLink: true } : {}) });
 	}
 
 	return { dice, entries, linkedFolder, description };

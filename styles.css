@@ -127,27 +127,32 @@
     flex-shrink: 0;
     cursor: pointer;
     position: relative;
-    transition:
-        background-color 0.15s ease,
-        border-color 0.15s ease;
+    transition: background-color 0.15s ease;
 }
 
 .duckmage-hex:focus {
     outline: none;
 }
 
-.duckmage-hex:hover {
-    background: var(--background-modifier-hover);
-    border-color: var(--interactive-accent);
+.duckmage-hex:hover::after,
+.duckmage-hex-exists:hover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 180, 0.35);
+    pointer-events: none;
+}
+
+.duckmage-hex.is-selected::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 190, 0, 0.55);
+    pointer-events: none;
 }
 
 .duckmage-hex-exists {
     border-color: var(--background-modifier-border-hover);
-}
-
-.duckmage-hex-exists:hover {
-    border-color: var(--interactive-accent);
-    background: var(--background-modifier-hover);
 }
 
 /* Terrain icon fills the hex, sits behind the label */
@@ -2178,6 +2183,11 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 }
 .duckmage-table-editor-add-btn {
     white-space: nowrap;
+}
+.duckmage-table-editor-add-error {
+    color: var(--text-error);
+    font-size: 0.85em;
+    margin-top: 4px;
 }
 .duckmage-table-editor-footer {
     display: flex;

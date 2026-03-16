@@ -132,13 +132,22 @@ export class RandomTableEditorModal extends Modal {
 				handle.title = "Drag to reorder";
 
 				const resultInput = row.createEl("textarea", { cls: "duckmage-table-editor-result" });
-				resultInput.value = entry.result;
+				// Show [[path]] for link entries so the user can see and edit the link format
+				resultInput.value = entry.isLink ? `[[${entry.result}]]` : entry.result;
 				resultInput.placeholder = "Result…";
 				resultInput.rows = 1;
 				// Size to content immediately, then keep in sync as the user types
 				requestAnimationFrame(() => autoResize(resultInput));
 				resultInput.addEventListener("input", () => {
-					entries[i].result = resultInput.value;
+					const val = resultInput.value;
+					const m = /^\[\[(.+?)(?:\|[^\]]+)?\]\]$/.exec(val.trim());
+					if (m) {
+						entries[i].result = m[1];
+						entries[i].isLink = true;
+					} else {
+						entries[i].result = val;
+						entries[i].isLink = undefined;
+					}
 					autoResize(resultInput);
 				});
 
@@ -200,11 +209,43 @@ export class RandomTableEditorModal extends Modal {
 
 		const addBtn = addRow.createEl("button", { text: "Add", cls: "duckmage-table-editor-add-btn mod-cta" });
 
+		const errorEl = contentEl.createDiv({ cls: "duckmage-table-editor-add-error" });
+		errorEl.style.display = "none";
+
 		const doAdd = () => {
-			const result = newResult.value.trim();
-			if (!result) return;
-			const weight = Math.max(1, parseInt(newWeight.value, 10) || 1);
-			entries.push({ result, weight });
+			const raw = newResult.value.trim();
+			if (!raw) return;
+
+			// Detect vault-relative link format: explicit [[...]] or a path containing / or \
+			const explicitLink = /^\[\[(.+?)(?:\|[^\]]+)?\]\]$/.exec(raw);
+			const linkPath = explicitLink ? explicitLink[1] : raw;
+			const looksLikeLink = explicitLink !== null || linkPath.includes("/") || linkPath.includes("\\");
+
+			if (looksLikeLink) {
+				// Normalize backslashes and strip .md extension if present
+				const normalizedPath = linkPath.replace(/\\/g, "/").replace(/\.md$/i, "");
+				// Try exact vault-relative path, then case-insensitive scan, then Obsidian's link resolver
+				const found = this.app.vault.getAbstractFileByPath(normalizedPath + ".md")
+					?? this.app.vault.getMarkdownFiles().find(
+						f => f.path.slice(0, -3).trim().toLowerCase() === normalizedPath.toLowerCase()
+					)
+					?? this.app.metadataCache.getFirstLinkpathDest(normalizedPath, this.file.path);
+				if (!(found instanceof TFile)) {
+					errorEl.setText(`No note found: "${normalizedPath}"`);
+					errorEl.style.display = "";
+					return;
+				}
+				errorEl.style.display = "none";
+				// Store the vault-relative path without extension (canonical link form)
+				const resolvedPath = found.path.replace(/\.md$/i, "");
+				const weight = Math.max(1, parseInt(newWeight.value, 10) || 1);
+				entries.push({ result: resolvedPath, weight, isLink: true });
+			} else {
+				errorEl.style.display = "none";
+				const weight = Math.max(1, parseInt(newWeight.value, 10) || 1);
+				entries.push({ result: raw, weight });
+			}
+
 			newResult.value = "";
 			newWeight.value = "1";
 			renderRows();
@@ -410,7 +451,10 @@ export class RandomTableEditorModal extends Modal {
 	}
 
 	private buildContent(frontmatter: string, preamble: string, entries: RandomTableEntry[], linkedFolder?: string): string {
-		const rows = entries.map(e => `| ${linkedFolder ? `[[${e.result}]]` : e.result} | ${e.weight} |`).join("\n");
+		const rows = entries.map(e => {
+			const cell = (linkedFolder || e.isLink) ? `[[${e.result}]]` : e.result;
+			return `| ${cell} | ${e.weight} |`;
+		}).join("\n");
 		const tableBlock = `| Result | Weight |\n|--------|--------|\n${rows}`;
 		const parts: string[] = [];
 		if (frontmatter) parts.push(frontmatter);

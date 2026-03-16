@@ -68,6 +68,36 @@ describe("addLinkToSection", () => {
 		// Should not throw
 		await expect(addLinkToSection(app, "MISSING.md", "Towns", "[[X]]")).resolves.toBeUndefined();
 	});
+
+	it("inserts link before the --- separator, not after it", async () => {
+		// Template structure: ### Towns\n\n---\n\n### Dungeons
+		const { app, getContent } = makeApp("hex.md", "### Towns\n\n---\n\n### Dungeons\n\n");
+		await addLinkToSection(app, "hex.md", "Towns", "[[Millhaven]]");
+		const content = getContent();
+		const townsIdx = content.indexOf("### Towns");
+		const linkIdx = content.indexOf("[[Millhaven]]");
+		const hrIdx = content.indexOf("---");
+		const dungeonsIdx = content.indexOf("### Dungeons");
+		// Link must appear between the heading and the --- separator
+		expect(linkIdx).toBeGreaterThan(townsIdx);
+		expect(linkIdx).toBeLessThan(hrIdx);
+		// --- and ### Dungeons must remain after the link
+		expect(hrIdx).toBeLessThan(dungeonsIdx);
+	});
+
+	it("inserts second link before the --- separator when section already has a link", async () => {
+		const { app, getContent } = makeApp(
+			"hex.md",
+			"### Towns\n\n[[Riverdale]]\n\n---\n\n### Dungeons\n\n",
+		);
+		await addLinkToSection(app, "hex.md", "Towns", "[[Millhaven]]");
+		const content = getContent();
+		const hrIdx = content.indexOf("---");
+		const millIdx = content.indexOf("[[Millhaven]]");
+		const riverIdx = content.indexOf("[[Riverdale]]");
+		expect(riverIdx).toBeLessThan(hrIdx);
+		expect(millIdx).toBeLessThan(hrIdx);
+	});
 });
 
 // ── removeLinkFromSection ─────────────────────────────────────────────────────
@@ -139,6 +169,13 @@ describe("getLinksInSection", () => {
 
 	it("stops at the next heading", async () => {
 		const { app } = makeApp("hex.md", "### Towns\n\n[[A]]\n\n### Dungeons\n\n[[B]]\n");
+		const links = await getLinksInSection(app, "hex.md", "Towns");
+		expect(links).toEqual(["A"]);
+	});
+
+	it("stops at a horizontal rule (--- separator)", async () => {
+		// Matches default hex template structure where sections are separated by ---
+		const { app } = makeApp("hex.md", "### Towns\n\n[[A]]\n\n---\n\n### Dungeons\n\n[[B]]\n");
 		const links = await getLinksInSection(app, "hex.md", "Towns");
 		expect(links).toEqual(["A"]);
 	});

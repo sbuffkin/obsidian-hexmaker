@@ -833,7 +833,7 @@ export class RandomTableView extends ItemView {
         if (ranges)
           tr.createEl("td", { text: ranges[i], cls: "duckmage-rt-range-cell" });
 
-        // Result cell — clickable link if table has a linked folder
+        // Result cell — clickable link for linked-folder or isLink entries
         const resultTd = tr.createEl("td");
         if (table.linkedFolder) {
           const link = resultTd.createEl("a", {
@@ -845,6 +845,19 @@ export class RandomTableView extends ItemView {
             const noteFile = this.app.vault.getAbstractFileByPath(
               `${table.linkedFolder}/${entry.result}.md`,
             );
+            if (noteFile instanceof TFile)
+              this.app.workspace.getLeaf().openFile(noteFile);
+          });
+        } else if (entry.isLink) {
+          const label = entry.result.split("/").pop() ?? entry.result;
+          const link = resultTd.createEl("a", {
+            text: label,
+            cls: "duckmage-rt-entry-link",
+          });
+          link.addEventListener("click", (e) => {
+            e.preventDefault();
+            const noteFile = this.app.vault.getAbstractFileByPath(entry.result + ".md")
+              ?? this.app.metadataCache.getFirstLinkpathDest(entry.result, "");
             if (noteFile instanceof TFile)
               this.app.workspace.getLeaf().openFile(noteFile);
           });
@@ -937,17 +950,22 @@ export class RandomTableView extends ItemView {
     const entry = rollOnTable(table);
     if (!entry) return;
 
+    // Display label: basename for link entries, full result for plain entries
+    const displayLabel = entry.isLink
+      ? (entry.result.split("/").pop() ?? entry.result)
+      : entry.result;
+
     this.detailEl
       ?.querySelectorAll(".duckmage-random-table tbody tr")
       .forEach((tr) => {
         tr.toggleClass(
           "is-rolled",
-          tr.textContent?.includes(entry.result) ?? false,
+          tr.textContent?.includes(displayLabel) ?? false,
         );
       });
 
     resultBox.style.display = "";
-    resultTextarea.value = entry.result;
+    resultTextarea.value = displayLabel;
     resultTextarea.focus();
 
     // Update "Open note" button
@@ -961,12 +979,20 @@ export class RandomTableView extends ItemView {
           if (noteFile instanceof TFile)
             this.app.workspace.getLeaf().openFile(noteFile);
         };
+      } else if (entry.isLink) {
+        openNoteBtn.style.display = "";
+        openNoteBtn.onclick = () => {
+          const noteFile = this.app.vault.getAbstractFileByPath(entry.result + ".md")
+            ?? this.app.metadataCache.getFirstLinkpathDest(entry.result, "");
+          if (noteFile instanceof TFile)
+            this.app.workspace.getLeaf().openFile(noteFile);
+        };
       } else {
         openNoteBtn.style.display = "none";
       }
     }
 
-    this.rollHistory.unshift(entry.result);
+    this.rollHistory.unshift(displayLabel);
     if (this.rollHistory.length > 5) this.rollHistory.pop();
     this.renderHistory(historyEl);
   }

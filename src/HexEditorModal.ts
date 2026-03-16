@@ -37,6 +37,8 @@ export class HexEditorModal extends Modal {
       terrainOverrides?: Map<string, string | null>,
       iconOverrides?: Map<string, string | null>,
     ) => void,
+    private onNavigate?: (x: number, y: number) => void,
+    private onModalClose?: () => void,
   ) {
     super(app);
   }
@@ -205,6 +207,7 @@ export class HexEditorModal extends Modal {
   }
 
   onClose() {
+    this.onModalClose?.();
     this.contentEl.empty();
   }
 
@@ -302,6 +305,7 @@ export class HexEditorModal extends Modal {
         tile.addEventListener("click", () => {
           this.x = nx;
           this.y = ny;
+          this.onNavigate?.(nx, ny);
           this.loadData().then(() => this.onOpen());
         });
       } else {

@@ -16,8 +16,8 @@ export async function addLinkToSection(app: App, filePath: string, section: stri
 	}
 
 	const afterHeading = match.index + match[0].length;
-	const nextHeadingMatch = /\n###? /m.exec(content.slice(afterHeading));
-	const sectionEnd = nextHeadingMatch ? afterHeading + nextHeadingMatch.index : content.length;
+	const nextBoundaryMatch = /\n(?:#{1,6} |-{3,})/m.exec(content.slice(afterHeading));
+	const sectionEnd = nextBoundaryMatch ? afterHeading + nextBoundaryMatch.index : content.length;
 	const sectionContent = content.slice(afterHeading, sectionEnd);
 
 	if (sectionContent.includes(linkText)) return; // already present
@@ -39,8 +39,8 @@ export async function removeLinkFromSection(app: App, filePath: string, section:
 	if (!match) return;
 
 	const afterHeading = match.index + match[0].length;
-	const nextHeadingMatch = /\n###? /m.exec(content.slice(afterHeading));
-	const sectionEnd = nextHeadingMatch ? afterHeading + nextHeadingMatch.index : content.length;
+	const nextBoundaryMatch = /\n(?:#{1,6} |-{3,})/m.exec(content.slice(afterHeading));
+	const sectionEnd = nextBoundaryMatch ? afterHeading + nextBoundaryMatch.index : content.length;
 
 	// Remove every line in the section that contains a link to linkTarget
 	const escapedTarget = linkTarget.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -61,8 +61,8 @@ export async function getLinksInSection(app: App, filePath: string, section: str
 	if (!match) return [];
 
 	const afterHeading = match.index + match[0].length;
-	const nextHeadingMatch = /\n###? /m.exec(content.slice(afterHeading));
-	const sectionEnd = nextHeadingMatch ? afterHeading + nextHeadingMatch.index : content.length;
+	const nextBoundaryMatch = /\n(?:#{1,6} |-{3,})/m.exec(content.slice(afterHeading));
+	const sectionEnd = nextBoundaryMatch ? afterHeading + nextBoundaryMatch.index : content.length;
 	const sectionContent = content.slice(afterHeading, sectionEnd);
 
 	const links: string[] = [];
