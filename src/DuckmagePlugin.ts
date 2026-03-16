@@ -5,7 +5,7 @@ import { RandomTableView } from "./RandomTableView";
 import { DuckmageSettingTab } from "./DuckmageSettingTab";
 import { DEFAULT_SETTINGS, DEFAULT_TERRAIN_PALETTE, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
-import type { DuckmagePluginSettings } from "./types";
+import type { DuckmagePluginSettings, RegionData } from "./types";
 import DEFAULT_HEX_TEMPLATE from "./defaultHexTemplate.md";
 import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
 import { addLinkToSection, getLinksInSection, removeLinkFromSection } from "./sections";
@@ -18,6 +18,7 @@ export default class DuckmagePlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		await this.loadAvailableIcons();
+		await this.migrateHexFilesToDefaultRegion();
 
 		this.registerView(VIEW_TYPE_HEX_MAP,       (leaf) => new HexMapView(leaf, this));
 		this.registerView(VIEW_TYPE_HEX_TABLE,     (leaf) => new HexTableView(leaf, this));
@@ -91,9 +92,32 @@ export default class DuckmagePlugin extends Plugin {
 	async loadSettings() {
 		const data = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
-		if (!this.settings.gridOffset) this.settings.gridOffset = { x: 0, y: 0 };
-		if (!Array.isArray(this.settings.roadChains))  this.settings.roadChains  = [];
-		if (!Array.isArray(this.settings.riverChains)) this.settings.riverChains = [];
+		// Deep-clone the regions array so mutations to settings.regions never alias DEFAULT_SETTINGS.regions.
+		// Object.assign does a shallow copy, so on first run (data===null) settings.regions IS
+		// DEFAULT_SETTINGS.regions – pushing/mutating it would corrupt the constant for the session.
+		this.settings.regions = (Array.isArray(this.settings.regions) ? this.settings.regions : []).map(r => ({
+			name: r.name,
+			gridSize:   r.gridSize   ? { cols: r.gridSize.cols,   rows: r.gridSize.rows }   : { cols: 20, rows: 16 },
+			gridOffset: r.gridOffset ? { x: r.gridOffset.x,       y: r.gridOffset.y }       : { x: 0,    y: 0 },
+			roadChains:  Array.isArray(r.roadChains)  ? r.roadChains.map((c: string[])  => [...c]) : [],
+			riverChains: Array.isArray(r.riverChains) ? r.riverChains.map((c: string[]) => [...c]) : [],
+		}));
+		// Migrate legacy flat gridSize/gridOffset/roadChains/riverChains into regions array
+		const legacyData = data as Record<string, unknown>;
+		if (!Array.isArray(this.settings.regions) || this.settings.regions.length === 0) {
+			this.settings.regions = [{
+				name: "default",
+				gridSize:   (legacyData.gridSize   as { cols: number; rows: number }) ?? { cols: 20, rows: 16 },
+				gridOffset: (legacyData.gridOffset as { x: number; y: number })       ?? { x: 0, y: 0 },
+				roadChains:  Array.isArray(legacyData.roadChains)  ? legacyData.roadChains  as string[][] : [],
+				riverChains: Array.isArray(legacyData.riverChains) ? legacyData.riverChains as string[][] : [],
+			}];
+		}
+		for (const r of this.settings.regions) {
+			if (!r.gridOffset) r.gridOffset = { x: 0, y: 0 };
+			if (!Array.isArray(r.roadChains))  r.roadChains  = [];
+			if (!Array.isArray(r.riverChains)) r.riverChains = [];
+		}
 		if (!this.settings.roadColor)  this.settings.roadColor  = "#a16207";
 		if (!this.settings.riverColor) this.settings.riverColor = "#3b82f6";
 		if (!this.settings.hexOrientation) this.settings.hexOrientation = "pointy";
@@ -107,6 +131,9 @@ export default class DuckmagePlugin extends Plugin {
 		if (this.settings.hexEditorNotesCollapsed    === undefined) this.settings.hexEditorNotesCollapsed    = false;
 		if (!Array.isArray(this.settings.rollTableExcludedFolders))      this.settings.rollTableExcludedFolders      = ["terrain"];
 		if (!Array.isArray(this.settings.encounterTableExcludedFolders)) this.settings.encounterTableExcludedFolders = ["terrain"];
+		if (!this.settings.defaultRegion) {
+			this.settings.defaultRegion = this.settings.regions[0]?.name ?? "default";
+		}
 		if (!Array.isArray(this.settings.terrainPalette) || this.settings.terrainPalette.length === 0) {
 			this.settings.terrainPalette = [...DEFAULT_TERRAIN_PALETTE];
 		} else {
@@ -184,9 +211,9 @@ export default class DuckmagePlugin extends Plugin {
 		this.availableIcons = [...new Set([...pluginIcons, ...vaultIcons])].sort();
 	}
 
-	hexPath(x: number, y: number): string {
+	hexPath(x: number, y: number, regionName: string): string {
 		const folder = normalizeFolder(this.settings.hexFolder);
-		return folder ? `${folder}/${x}_${y}.md` : `${x}_${y}.md`;
+		return folder ? `${folder}/${regionName}/${x}_${y}.md` : `${regionName}/${x}_${y}.md`;
 	}
 
 	/** Build the Obsidian URI roller link for a table file path. */
@@ -412,8 +439,8 @@ export default class DuckmagePlugin extends Plugin {
 	}
 
 	/** Create a hex note from the configured template (or the built-in default). */
-	async createHexNote(x: number, y: number): Promise<TFile | null> {
-		const path = this.hexPath(x, y);
+	async createHexNote(x: number, y: number, regionName: string): Promise<TFile | null> {
+		const path = this.hexPath(x, y, regionName);
 		const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
 		let content: string;
 
@@ -438,9 +465,10 @@ export default class DuckmagePlugin extends Plugin {
 			.replace(/\{\{y\}\}/g, String(y))
 			.replace(/\{\{title\}\}/g, `Hex ${x}, ${y}`);
 
-		const folder = normalizeFolder(this.settings.hexFolder);
-		if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
-			await this.app.vault.createFolder(folder);
+		const hexBase = normalizeFolder(this.settings.hexFolder);
+		const regionFolder = hexBase ? `${hexBase}/${regionName}` : regionName;
+		if (!this.app.vault.getAbstractFileByPath(regionFolder)) {
+			await this.app.vault.createFolder(regionFolder);
 		}
 
 		try {
@@ -449,5 +477,39 @@ export default class DuckmagePlugin extends Plugin {
 			new Notice("Could not create note: " + (e instanceof Error ? e.message : String(e)));
 			return null;
 		}
+	}
+
+	getRegion(name: string): RegionData | undefined {
+		return this.settings.regions.find(r => r.name === name);
+	}
+
+	getOrCreateRegion(name: string): RegionData {
+		let r = this.getRegion(name);
+		if (!r) {
+			r = { name, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] };
+			this.settings.regions.push(r);
+		}
+		return r;
+	}
+
+	private async migrateHexFilesToDefaultRegion(): Promise<void> {
+		const hexFolder = normalizeFolder(this.settings.hexFolder);
+		if (!hexFolder) return;
+		const defaultFolder = `${hexFolder}/default`;
+		if (!this.app.vault.getAbstractFileByPath(defaultFolder)) {
+			try { await this.app.vault.createFolder(defaultFolder); } catch { /* exists */ }
+		}
+		const candidates = this.app.vault.getMarkdownFiles().filter(f => {
+			const parent = f.parent?.path ?? "";
+			return parent === hexFolder && /^-?\d+_-?\d+$/.test(f.basename);
+		});
+		let moved = 0;
+		for (const file of candidates) {
+			const newPath = `${defaultFolder}/${file.name}`;
+			if (!this.app.vault.getAbstractFileByPath(newPath)) {
+				try { await this.app.fileManager.renameFile(file, newPath); moved++; } catch { /* skip */ }
+			}
+		}
+		if (moved > 0) new Notice(`Duckmage: migrated ${moved} hex file(s) to "default" region.`);
 	}
 }

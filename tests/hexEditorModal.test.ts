@@ -46,7 +46,7 @@ describe("HexEditorModal.loadData", () => {
 	it("sets hexExists to false when the hex file does not exist", async () => {
 		const app = makeApp({});
 		const plugin = makePlugin(() => "hex/1_1.md");
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).hexExists).toBe(false);
 	});
@@ -54,7 +54,7 @@ describe("HexEditorModal.loadData", () => {
 	it("sets hexExists to true when the hex file exists", async () => {
 		const app = makeApp({ "hex/1_1.md": "---\nterrain: forest\n---\n\n" });
 		const plugin = makePlugin(() => "hex/1_1.md");
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).hexExists).toBe(true);
 	});
@@ -62,7 +62,7 @@ describe("HexEditorModal.loadData", () => {
 	it("extracts directTerrain from frontmatter", async () => {
 		const app = makeApp({ "hex/2_3.md": "---\nterrain: desert\n---\n\nBody." });
 		const plugin = makePlugin(() => "hex/2_3.md");
-		const modal = new HexEditorModal(app, plugin, 2, 3, () => {});
+		const modal = new HexEditorModal(app, plugin, 2, 3, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directTerrain).toBe("desert");
 	});
@@ -70,7 +70,7 @@ describe("HexEditorModal.loadData", () => {
 	it("extracts directIcon from frontmatter", async () => {
 		const app = makeApp({ "hex/4_5.md": "---\nterrain: forest\nicon: castle.png\n---\n\n" });
 		const plugin = makePlugin(() => "hex/4_5.md");
-		const modal = new HexEditorModal(app, plugin, 4, 5, () => {});
+		const modal = new HexEditorModal(app, plugin, 4, 5, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directIcon).toBe("castle.png");
 	});
@@ -78,7 +78,7 @@ describe("HexEditorModal.loadData", () => {
 	it("leaves directTerrain null when frontmatter has no terrain field", async () => {
 		const app = makeApp({ "hex/1_1.md": "---\ntitle: test\n---\n\n" });
 		const plugin = makePlugin(() => "hex/1_1.md");
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directTerrain).toBeNull();
 	});
@@ -86,7 +86,7 @@ describe("HexEditorModal.loadData", () => {
 	it("leaves directIcon null when frontmatter has no icon field", async () => {
 		const app = makeApp({ "hex/1_1.md": "---\nterrain: forest\n---\n\n" });
 		const plugin = makePlugin(() => "hex/1_1.md");
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directIcon).toBeNull();
 	});
@@ -96,7 +96,7 @@ describe("HexEditorModal.loadData", () => {
 			"hex/3_3.md": "---\nterrain: grass\n---\n\n### Description\n\nA grassy plain.\n\n### Landmark\n\nA tall oak.\n",
 		});
 		const plugin = makePlugin(() => "hex/3_3.md");
-		const modal = new HexEditorModal(app, plugin, 3, 3, () => {});
+		const modal = new HexEditorModal(app, plugin, 3, 3, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).allText.get("description")).toBe("A grassy plain.");
 		expect((modal as any).allText.get("landmark")).toBe("A tall oak.");
@@ -107,7 +107,7 @@ describe("HexEditorModal.loadData", () => {
 			"hex/5_5.md": "---\nterrain: forest\n---\n\n### Encounters Table\n\n[[tables/terrain/forest - encounters]]\n",
 		});
 		const plugin = makePlugin(() => "hex/5_5.md");
-		const modal = new HexEditorModal(app, plugin, 5, 5, () => {});
+		const modal = new HexEditorModal(app, plugin, 5, 5, "default", () => {});
 		await modal.loadData();
 		const links = (modal as any).allLinks.get("encounters table") as string[];
 		expect(links).toContain("tables/terrain/forest - encounters");
@@ -124,7 +124,7 @@ describe("HexEditorModal navigation reload", () => {
 		});
 		const plugin = makePlugin((x, y) => `hex/${x}_${y}.md`);
 
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directTerrain).toBe("forest");
 
@@ -141,7 +141,7 @@ describe("HexEditorModal navigation reload", () => {
 		});
 		const plugin = makePlugin((x, y) => `hex/${x}_${y}.md`);
 
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).hexExists).toBe(true);
 
@@ -159,7 +159,7 @@ describe("HexEditorModal navigation reload", () => {
 		});
 		const plugin = makePlugin((x, y) => `hex/${x}_${y}.md`);
 
-		const modal = new HexEditorModal(app, plugin, 1, 1, () => {});
+		const modal = new HexEditorModal(app, plugin, 1, 1, "default", () => {});
 		await modal.loadData();
 		expect((modal as any).directIcon).toBe("tower.png");
 

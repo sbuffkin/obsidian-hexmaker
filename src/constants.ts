@@ -110,11 +110,10 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   templatePath: "",
   hexGap: "0.15",
   terrainPalette: DEFAULT_TERRAIN_PALETTE,
-  gridSize: { cols: 20, rows: 16 },
-  gridOffset: { x: 0, y: 0 },
+  regions: [
+    { name: "default", gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] },
+  ],
   zoomLevel: 1,
-  roadChains: [],
-  riverChains: [],
   roadColor: "#a16207",
   riverColor: "#3b82f6",
   hexOrientation: "flat",
@@ -126,4 +125,5 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   hexEditorNotesCollapsed: false,
   rollTableExcludedFolders: ["terrain"],
   encounterTableExcludedFolders: ["terrain"],
+  defaultRegion: "default",
 };

@@ -32,6 +32,7 @@ export class HexEditorModal extends Modal {
     private plugin: DuckmagePlugin,
     private x: number,
     private y: number,
+    private regionName: string,
     private onChanged: (
       terrainOverrides?: Map<string, string | null>,
       iconOverrides?: Map<string, string | null>,
@@ -47,7 +48,7 @@ export class HexEditorModal extends Modal {
     this.directTerrain = null;
     this.directIcon = null;
 
-    const path = this.plugin.hexPath(this.x, this.y);
+    const path = this.plugin.hexPath(this.x, this.y, this.regionName);
     this.hexExists =
       this.app.vault.getAbstractFileByPath(path) instanceof TFile;
     if (!this.hexExists) return;
@@ -74,7 +75,7 @@ export class HexEditorModal extends Modal {
     contentEl.addClass("duckmage-hex-editor");
 
     const { hexExists, allText, allLinks, directTerrain, directIcon } = this;
-    const path = this.plugin.hexPath(this.x, this.y);
+    const path = this.plugin.hexPath(this.x, this.y, this.regionName);
     const titleRow = contentEl.createDiv({ cls: "duckmage-editor-title-row" });
     const titleLeft = titleRow.createDiv({ cls: "duckmage-editor-title-left" });
     titleLeft.createEl("h2", { text: `Hex ${this.x}, ${this.y}` });
@@ -249,7 +250,8 @@ export class HexEditorModal extends Modal {
   }
 
   private isOnMap(nx: number, ny: number): boolean {
-    const { gridOffset, gridSize } = this.plugin.settings;
+    const region = this.plugin.getOrCreateRegion(this.regionName);
+    const { gridOffset, gridSize } = region;
     return (
       nx >= gridOffset.x &&
       nx < gridOffset.x + gridSize.cols &&
@@ -291,7 +293,7 @@ export class HexEditorModal extends Modal {
 
       if (onMap) {
         tile.title = `Hex ${nx}, ${ny}`;
-        const nPath = this.plugin.hexPath(nx, ny);
+        const nPath = this.plugin.hexPath(nx, ny, this.regionName);
         const terrain = getTerrainFromFile(this.app, nPath);
         const entry = terrain
           ? this.plugin.settings.terrainPalette.find(p => p.name === terrain)
@@ -803,9 +805,9 @@ export class HexEditorModal extends Modal {
   }
 
   private async ensureHexNote(): Promise<TFile | null> {
-    const path = this.plugin.hexPath(this.x, this.y);
+    const path = this.plugin.hexPath(this.x, this.y, this.regionName);
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing instanceof TFile) return existing;
-    return this.plugin.createHexNote(this.x, this.y);
+    return this.plugin.createHexNote(this.x, this.y, this.regionName);
   }
 }

@@ -1,3 +1,11 @@
+export interface RegionData {
+	name: string;
+	gridSize: { cols: number; rows: number };
+	gridOffset: { x: number; y: number };
+	roadChains: string[][];
+	riverChains: string[][];
+}
+
 export interface TerrainColor {
 	name: string;
 	color: string;
@@ -16,11 +24,8 @@ export interface DuckmagePluginSettings {
 	templatePath: string;
 	hexGap: string;
 	terrainPalette: TerrainColor[];
-	gridSize: { cols: number; rows: number };
-	gridOffset: { x: number; y: number };
+	regions: RegionData[];
 	zoomLevel: number;
-	roadChains: string[][];
-	riverChains: string[][];
 	roadColor: string;
 	riverColor: string;
 	hexOrientation: "pointy" | "flat";
@@ -32,6 +37,7 @@ export interface DuckmagePluginSettings {
 	hexEditorNotesCollapsed: boolean;
 	rollTableExcludedFolders: string[];
 	encounterTableExcludedFolders: string[];
+	defaultRegion: string;
 }
 
 export const LINK_SECTIONS = ["Towns", "Dungeons", "Features", "Quests", "Factions", "Encounters Table"] as const;

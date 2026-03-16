@@ -232,9 +232,12 @@ class TerrainPickerModal extends Modal {
 			btn.createSpan({ text: entry.name, cls: "duckmage-terrain-option-name" });
 			btn.addEventListener("click", async () => {
 				if (!this.app.vault.getAbstractFileByPath(this.hexPath)) {
-					await this.plugin.createHexNote(
-						...this.hexPath.replace(/\.md$/, "").split("/").pop()!.split("_").map(Number) as [number, number],
-					);
+					const basename = this.hexPath.replace(/\.md$/, "").split("/").pop()!;
+					const [hx, hy] = basename.split("_").map(Number);
+					const hexFolder = normalizeFolder(this.plugin.settings.hexFolder);
+					const relative = hexFolder ? this.hexPath.slice(hexFolder.length + 1) : this.hexPath;
+					const regionName = relative.split("/")[0];
+					await this.plugin.createHexNote(hx, hy, regionName);
 				}
 				await setTerrainInFile(this.app, this.hexPath, entry.name);
 				this.onPicked();
@@ -376,6 +379,8 @@ export class HexTableView extends ItemView {
 	private filterHasFeature = false;
 	private filterHasQuest = false;
 	private filterHasFaction = false;
+	private regionFilter = "all";
+	private regionSelectEl: HTMLSelectElement | null = null;
 
 	// Filter UI elements (created once in onOpen)
 	private filterXMinInput: HTMLInputElement | null = null;
@@ -522,6 +527,27 @@ export class HexTableView extends ItemView {
 
 		toolbar.createDiv({ cls: "duckmage-filter-separator" });
 
+		// Region filter
+		const regionSelect = toolbar.createEl("select", { cls: "duckmage-hex-table-region-select" }) as HTMLSelectElement;
+		this.regionSelectEl = regionSelect;
+		regionSelect.createEl("option", { value: "all", text: "All regions" });
+		for (const r of this.plugin.settings.regions) {
+			regionSelect.createEl("option", { value: r.name, text: r.name });
+		}
+		// Default to active map view's region
+		const mapLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_HEX_MAP);
+		if (mapLeaves.length > 0) {
+			const mapView = mapLeaves[0].view as HexMapView;
+			this.regionFilter = mapView.activeRegionName;
+		}
+		regionSelect.value = this.regionFilter;
+		regionSelect.addEventListener("change", () => {
+			this.regionFilter = regionSelect.value;
+			void this.loadTable();
+		});
+
+		toolbar.createDiv({ cls: "duckmage-filter-separator" });
+
 		// Sort controls
 		this.sortPrimaryBtn = toolbar.createEl("button", {
 			text: "Sort: X→Y",
@@ -592,19 +618,31 @@ export class HexTableView extends ItemView {
 		this.scrollEl.empty();
 		this.scrollEl.createSpan({ text: "Loading…", cls: "duckmage-hex-table-empty" });
 
-		const folder = normalizeFolder(this.plugin.settings.hexFolder);
+		const hexFolder = normalizeFolder(this.plugin.settings.hexFolder);
 		let files: { path: string; x: number; y: number }[] = [];
 
 		try {
-			const listing = await this.app.vault.adapter.list(folder || "/");
-			for (const filePath of listing.files) {
-				const m = HEX_PATTERN.exec(filePath);
-				if (m) files.push({ path: filePath, x: Number(m[1]), y: Number(m[2]) });
-			}
+			this.app.vault.getMarkdownFiles()
+				.filter(f => hexFolder ? f.path.startsWith(hexFolder + "/") : true)
+				.forEach(f => {
+					const m = HEX_PATTERN.exec(f.name);
+					if (!m) return;
+					// Only include files that are one level inside hexFolder (region subfolder)
+					const relative = hexFolder ? f.path.slice(hexFolder.length + 1) : f.path;
+					const parts = relative.split("/");
+					if (parts.length < 2) return; // not in a region subfolder
+					files.push({ path: f.path, x: Number(m[1]), y: Number(m[2]) });
+				});
 		} catch {
 			this.scrollEl.empty();
 			this.scrollEl.createSpan({ text: "Could not read hex folder.", cls: "duckmage-hex-table-empty" });
 			return;
+		}
+
+		// Apply region filter
+		if (this.regionFilter !== "all") {
+			const prefix = hexFolder ? `${hexFolder}/${this.regionFilter}/` : `${this.regionFilter}/`;
+			files = files.filter(f => f.path.startsWith(prefix));
 		}
 
 		files.sort((a, b) => {
@@ -652,7 +690,10 @@ export class HexTableView extends ItemView {
 			const { text, links } = sectionData[i];
 			const tr = tbody.createEl("tr");
 			tr.dataset.hexPath = path;
-			this.fillRow(tr, path, x, y, text, links);
+			const hexFolder = normalizeFolder(this.plugin.settings.hexFolder);
+			const relative = hexFolder ? path.slice(hexFolder.length + 1) : path;
+			const rowRegion = relative.split("/")[0];
+			this.fillRow(tr, path, x, y, rowRegion, text, links);
 		}
 
 		this.scrollEl.empty();
@@ -752,6 +793,7 @@ export class HexTableView extends ItemView {
 		path: string,
 		x: number,
 		y: number,
+		region: string,
 		text: Map<string, string>,
 		links: Map<string, string[]>,
 	): void {
@@ -776,6 +818,7 @@ export class HexTableView extends ItemView {
 		tr.dataset.hasFeature = hasFeature ? "1" : "0";
 		tr.dataset.hasQuest   = hasQuest   ? "1" : "0";
 		tr.dataset.hasFaction = hasFaction ? "1" : "0";
+		tr.dataset.region = region;
 
 		// Coords cell — click to open note
 		const coordsTd = tr.createEl("td");
@@ -911,7 +954,7 @@ export class HexTableView extends ItemView {
 						},
 						async () => {
 							if (!this.app.vault.getAbstractFileByPath(path)) {
-								await this.plugin.createHexNote(x, y);
+								await this.plugin.createHexNote(x, y, region);
 							}
 						},
 					).open();
@@ -986,7 +1029,10 @@ export class HexTableView extends ItemView {
 		const y = Number(m[2]);
 
 		const { text, links } = await getAllSectionData(this.app, path);
-		this.fillRow(tr, path, x, y, text, links);
+		const hexFolder = normalizeFolder(this.plugin.settings.hexFolder);
+		const relative = hexFolder ? path.slice(hexFolder.length + 1) : path;
+		const rowRegion = relative.split('/')[0];
+		this.fillRow(tr, path, x, y, rowRegion, text, links);
 		this.applyFilters();
 	}
 }

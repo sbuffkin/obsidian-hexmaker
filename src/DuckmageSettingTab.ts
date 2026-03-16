@@ -53,6 +53,14 @@ export class DuckmageSettingTab extends PluginSettingTab {
 						}
 					}
 					await this.plugin.saveSettings();
+					// Also ensure the default region subfolder exists
+					const hexF = normalizeFolder(this.plugin.settings.hexFolder);
+					if (hexF) {
+						const defaultRegion = `${hexF}/default`;
+						if (!this.app.vault.getAbstractFileByPath(defaultRegion)) {
+							try { await this.app.vault.createFolder(defaultRegion); } catch { /* exists */ }
+						}
+					}
 					new Notice("Folders generated.");
 					this.display();
 				}),
@@ -225,6 +233,21 @@ export class DuckmageSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Default region")
+			.setDesc("The region opened when the hex map is launched.")
+			.addDropdown(dropdown => {
+				for (const r of this.plugin.settings.regions) {
+					dropdown.addOption(r.name, r.name);
+				}
+				dropdown
+					.setValue(this.plugin.settings.defaultRegion ?? this.plugin.settings.regions[0]?.name ?? "")
+					.onChange(async value => {
+						this.plugin.settings.defaultRegion = value;
+						await this.plugin.saveSettings();
+					});
+			});
+
+		new Setting(containerEl)
 			.setName("Hex orientation")
 			.setDesc("Pointy-top: points face north/south, flat sides east/west. Flat-top: flat sides face north/south, points east/west.")
 			.addDropdown(dropdown =>
@@ -234,32 +257,6 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.hexOrientation ?? "pointy")
 					.onChange(async value => {
 						this.plugin.settings.hexOrientation = value as "pointy" | "flat";
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Grid width")
-			.setDesc("Number of hex columns.")
-			.addText(text =>
-				text
-					.setPlaceholder("20")
-					.setValue(String(this.plugin.settings.gridSize.cols))
-					.onChange(async value => {
-						this.plugin.settings.gridSize.cols = Number(value.trim()) || 20;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Grid height")
-			.setDesc("Number of hex rows.")
-			.addText(text =>
-				text
-					.setPlaceholder("16")
-					.setValue(String(this.plugin.settings.gridSize.rows))
-					.onChange(async value => {
-						this.plugin.settings.gridSize.rows = Number(value.trim()) || 16;
 						await this.plugin.saveSettings();
 					}),
 			);
