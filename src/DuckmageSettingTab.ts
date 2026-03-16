@@ -436,7 +436,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 	private getTerrainTablePath(terrainName: string, tableType: "description" | "encounters"): string {
 		const folder = normalizeFolder(this.plugin.settings.tablesFolder);
 		const subfolder = folder ? `${folder}/terrain` : "terrain";
-		return `${subfolder}/${terrainName} - ${tableType}.md`;
+		return `${subfolder}/${tableType}/${terrainName}.md`;
 	}
 
 	private async renameTerrainTables(oldName: string, newName: string): Promise<void> {

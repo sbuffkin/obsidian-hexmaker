@@ -255,9 +255,31 @@ export default class DuckmagePlugin extends Plugin {
 		if (!this.app.vault.getAbstractFileByPath(subfolder)) {
 			try { await this.app.vault.createFolder(subfolder); } catch { /* may already exist */ }
 		}
+
+		// Ensure type subfolders exist
+		for (const tableType of ["description", "encounters"] as const) {
+			const typeSubfolder = `${subfolder}/${tableType}`;
+			if (!this.app.vault.getAbstractFileByPath(typeSubfolder)) {
+				try { await this.app.vault.createFolder(typeSubfolder); } catch { /* may already exist */ }
+			}
+		}
+
+		// Migrate any old flat-format files ({name} - {type}.md) to the new subfolder scheme
 		for (const entry of this.settings.terrainPalette) {
 			for (const tableType of ["description", "encounters"] as const) {
-				const path = `${subfolder}/${entry.name} - ${tableType}.md`;
+				const oldPath = `${subfolder}/${entry.name} - ${tableType}.md`;
+				const newPath = `${subfolder}/${tableType}/${entry.name}.md`;
+				const oldFile = this.app.vault.getAbstractFileByPath(oldPath);
+				if (oldFile instanceof TFile && !this.app.vault.getAbstractFileByPath(newPath)) {
+					try { await this.app.fileManager.renameFile(oldFile, newPath); } catch { /* ignore */ }
+				}
+			}
+		}
+
+		// Create any still-missing table files
+		for (const entry of this.settings.terrainPalette) {
+			for (const tableType of ["description", "encounters"] as const) {
+				const path = `${subfolder}/${tableType}/${entry.name}.md`;
 				if (!this.app.vault.getAbstractFileByPath(path)) {
 					try {
 						await this.app.vault.create(
@@ -288,7 +310,7 @@ export default class DuckmagePlugin extends Plugin {
 		for (const file of hexFiles) {
 			const terrain = getTerrainFromFile(this.app, file.path);
 			if (!terrain) continue;
-			const tablePath = `${subfolder}/${terrain} - encounters.md`;
+			const tablePath = `${subfolder}/encounters/${terrain}.md`;
 			const tableFile = this.app.vault.getAbstractFileByPath(tablePath);
 			if (!(tableFile instanceof TFile)) continue;
 
@@ -316,14 +338,14 @@ export default class DuckmagePlugin extends Plugin {
 		const existing = await getLinksInSection(this.app, hexFilePath, "Encounters Table");
 		for (const linkTarget of existing) {
 			const resolved = this.app.metadataCache.getFirstLinkpathDest(linkTarget, hexFilePath);
-			if (resolved && resolved.path.startsWith(subfolder + "/") && resolved.path.endsWith(" - encounters.md")) {
+			if (resolved && resolved.path.startsWith(subfolder + "/encounters/")) {
 				await removeLinkFromSection(this.app, hexFilePath, "Encounters Table", linkTarget);
 			}
 		}
 
 		if (!terrain) return;
 
-		const tablePath = `${subfolder}/${terrain} - encounters.md`;
+		const tablePath = `${subfolder}/encounters/${terrain}.md`;
 		const tableFile = this.app.vault.getAbstractFileByPath(tablePath);
 		if (!(tableFile instanceof TFile)) return;
 		const linkText = `[[${this.app.metadataCache.fileToLinktext(tableFile, hexFilePath)}]]`;

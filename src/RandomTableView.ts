@@ -179,12 +179,13 @@ export class RandomTableView extends ItemView {
       const folder = normalizeFolder(this.plugin.settings.tablesFolder);
       const newPath = folder ? `${folder}/${name}.md` : `${name}.md`;
       let file = this.app.vault.getAbstractFileByPath(newPath);
+      let srcFolder = "";
       if (!(file instanceof TFile)) {
         try {
           if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
             await this.app.vault.createFolder(folder);
           }
-          const srcFolder = normalizeFolder(fromFolderInput.value.trim());
+          srcFolder = normalizeFolder(fromFolderInput.value.trim());
           let content: string;
           if (srcFolder) {
             const folderFiles = this.app.vault
@@ -215,7 +216,9 @@ export class RandomTableView extends ItemView {
       newInput.title = "";
       fromFolderInput.value = "";
       await this.loadList();
-      this.loadTable(file as TFile);
+      await this.loadTable(file as TFile);
+      // Re-render after vault I/O settles to ensure linked-folder link styling is applied
+      if (srcFolder) await this.renderDetail();
     };
 
     newBtn.addEventListener("click", createTable);

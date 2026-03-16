@@ -737,8 +737,8 @@ export class HexEditorModal extends Modal {
       const terrain = getTerrainFromFile(this.app, path);
       if (terrain) {
         const p = tablesFolder
-          ? `${tablesFolder}/terrain/${terrain} - description.md`
-          : `terrain/${terrain} - description.md`;
+          ? `${tablesFolder}/terrain/description/${terrain}.md`
+          : `terrain/description/${terrain}.md`;
         if (this.app.vault.getAbstractFileByPath(p)) {
           previewTablePath = p;
           previewTitle = `Roll on ${terrain} description table`;
