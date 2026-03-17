@@ -2440,3 +2440,166 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 .duckmage-saving-indicator.is-active {
     opacity: 1;
 }
+
+/* ── Workflow styles ──────────────────────────────────────────────────────── */
+
+/* View-mode toggle */
+.duckmage-rt-mode-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+.duckmage-rt-mode-tab {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 10px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    cursor: pointer;
+    box-shadow: none;
+}
+.duckmage-rt-mode-tab.is-active {
+    border-color: var(--background-modifier-border);
+    color: var(--text-normal);
+    background: var(--background-secondary);
+}
+
+/* Workflow list item */
+.duckmage-rt-workflow-item {
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.duckmage-rt-workflow-item:hover {
+    background: var(--background-modifier-hover);
+}
+.duckmage-rt-workflow-item.is-active {
+    background: var(--background-modifier-active-hover);
+    font-weight: 600;
+}
+
+/* Workflow wizard step rows */
+.duckmage-wf-wizard-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.duckmage-wf-wizard-step {
+    margin-bottom: 12px;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+}
+.duckmage-wf-wizard-step-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.duckmage-wf-roll-badge {
+    font-size: 0.75em;
+    background: var(--background-modifier-border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--text-muted);
+}
+.duckmage-wf-step-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+.duckmage-wf-roll-input {
+    flex: 1;
+    font-style: italic;
+    color: var(--text-muted);
+}
+.duckmage-wf-pick-select {
+    flex: 1;
+    min-width: 0;
+}
+.duckmage-wf-roll-input.is-rolled {
+    font-style: normal;
+    color: var(--text-normal);
+}
+
+/* Workflow template area */
+.duckmage-wf-template-area {
+    width: 100%;
+    min-height: 140px;
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+/* Validation */
+.duckmage-wf-validation-ok {
+    color: var(--color-green);
+    font-size: 0.85em;
+    margin-top: 4px;
+}
+.duckmage-wf-validation-err {
+    color: var(--color-red);
+    font-size: 0.85em;
+    margin-top: 4px;
+}
+
+/* Workflow editor step rows */
+.duckmage-wf-editor-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.duckmage-wf-editor-step-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.duckmage-wf-editor-step-row select {
+    flex: 2;
+}
+.duckmage-wf-editor-step-row input[type="number"] {
+    width: 52px;
+}
+.duckmage-wf-editor-step-row input[type="text"] {
+    flex: 1;
+}
+
+/* "Used by workflows" section in table detail */
+.duckmage-rt-used-by {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+.duckmage-rt-used-by-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+.duckmage-rt-used-by-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+/* Save status */
+.duckmage-wf-save-status {
+    margin-top: 4px;
+    font-size: 0.85em;
+}
+
+.duckmage-wf-editor-add-area {
+    margin-bottom: 8px;
+}
+.duckmage-wf-editor-add-btn-row {
+    margin-top: 6px;
+}

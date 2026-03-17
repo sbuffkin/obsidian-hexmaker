@@ -39,6 +39,7 @@ export interface DuckmagePluginSettings {
 	rollTableExcludedFolders: string[];
 	encounterTableExcludedFolders: string[];
 	defaultRegion: string;
+	workflowsFolder: string;
 }
 
 export const LINK_SECTIONS = ["Towns", "Dungeons", "Features", "Quests", "Factions", "Encounters Table"] as const;

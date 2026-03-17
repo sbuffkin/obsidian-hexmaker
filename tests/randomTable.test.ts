@@ -5,6 +5,7 @@ import {
 	getOddsLabel,
 	getDieRanges,
 	setDiceInFrontmatter,
+	extractPostTableContent,
 } from "../src/randomTable";
 
 // ── parseRandomTable ──────────────────────────────────────────────────────────
@@ -307,5 +308,24 @@ describe("setDiceInFrontmatter", () => {
 		const result = setDiceInFrontmatter(content, 8);
 		expect(result).toContain("| Result | Weight |");
 		expect(result).toContain("| A | 1 |");
+	});
+});
+
+
+// ── extractPostTableContent ───────────────────────────────────────────────────
+
+describe("extractPostTableContent", () => {
+	it("returns empty string when nothing follows the table", () => {
+		const content = `---\ndice: 6\n---\n\n| Result | Weight |\n|--------|--------|\n| a | 1 |\n`;
+		expect(extractPostTableContent(content)).toBe("");
+	});
+
+	it("returns content after the last table row", () => {
+		const content = `| Result | Weight |\n|--------|--------|\n| a | 1 |\n\n## Notes\n\nSome extra text.\n`;
+		expect(extractPostTableContent(content)).toBe("## Notes\n\nSome extra text.\n");
+	});
+
+	it("returns empty string when no table present", () => {
+		expect(extractPostTableContent("No table here.")).toBe("");
 	});
 });

@@ -24,11 +24,9 @@ The visible standout feature — spire, ruin, lighthouse, statue, village — th
 ### Towns
 
 ---
-
 ### Dungeons
 
 ---
-
 ### Features
 
 ---

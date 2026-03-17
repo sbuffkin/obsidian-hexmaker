@@ -12,15 +12,19 @@ import type DuckmagePlugin from "./DuckmagePlugin";
 import { VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
 import { RandomTableEditorModal } from "./RandomTableEditorModal";
+import { WorkflowEditorModal } from "./WorkflowEditorModal";
+import { WorkflowWizardModal } from "./WorkflowWizardModal";
 import {
   parseRandomTable,
   rollOnTable,
   getDieRanges,
   getOddsLabel,
   setDiceInFrontmatter,
+  extractPostTableContent,
   type RandomTable,
   type RandomTableEntry,
 } from "./randomTable";
+import { parseWorkflow } from "./workflow";
 
 const DIE_OPTIONS = [
   { label: "— no die —", value: 0 },
@@ -57,8 +61,14 @@ export class RandomTableView extends ItemView {
   private filterQuery = "";
   private treeInitialized = false;
   private linkedFolderMap: Map<string, string> = new Map(); // folder path → table file path
+  private workflowMap: Map<string, string[]> = new Map(); // table path (no .md) → workflow file paths
   private listRefreshTimer: number | null = null;
   private detailRefreshTimer: number | null = null;
+  private viewMode: "tables" | "workflows" = "tables";
+  private tablesBtn: HTMLButtonElement | null = null;
+  private workflowsBtn: HTMLButtonElement | null = null;
+  private tableFooterEl: HTMLElement | null = null;
+  private workflowFooterEl: HTMLElement | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -82,8 +92,16 @@ export class RandomTableView extends ItemView {
     if (state?.filePath) {
       const file = this.app.vault.getAbstractFileByPath(state.filePath);
       if (file instanceof TFile) {
-        await this.loadList();
-        this.loadTable(file);
+        if (this.isInWorkflowsFolder(file.path)) {
+          this.viewMode = "workflows";
+          this.tablesBtn?.removeClass("is-active");
+          this.workflowsBtn?.addClass("is-active");
+          await this.loadList();
+          await this.loadWorkflow(file);
+        } else {
+          await this.loadList();
+          this.loadTable(file);
+        }
       }
     }
   }
@@ -107,6 +125,19 @@ export class RandomTableView extends ItemView {
     });
     refreshBtn.title = "Refresh list";
     refreshBtn.addEventListener("click", () => this.loadList());
+
+    // ── Mode toggle tabs ─────────────────────────────────────────────────
+    const modeTabs = leftCol.createDiv({ cls: "duckmage-rt-mode-tabs" });
+    this.tablesBtn = modeTabs.createEl("button", {
+      text: "Tables",
+      cls: "duckmage-rt-mode-tab is-active",
+    });
+    this.workflowsBtn = modeTabs.createEl("button", {
+      text: "Workflows",
+      cls: "duckmage-rt-mode-tab",
+    });
+    this.tablesBtn.addEventListener("click", () => this.setViewMode("tables"));
+    this.workflowsBtn.addEventListener("click", () => this.setViewMode("workflows"));
 
     const searchInput = leftCol.createEl("input", {
       type: "text",
@@ -143,7 +174,19 @@ export class RandomTableView extends ItemView {
     });
 
     const listFooter = leftCol.createDiv({ cls: "duckmage-rt-list-footer" });
-    const newRow = listFooter.createDiv({ cls: "duckmage-rt-new-row" });
+
+    // ── Workflow footer (shown in workflows mode) ──────────────────────────
+    this.workflowFooterEl = listFooter.createDiv();
+    this.workflowFooterEl.style.display = "none";
+    const newWfFooterBtn = this.workflowFooterEl.createEl("button", {
+      text: "+ New workflow",
+      cls: "duckmage-rt-new-btn",
+    });
+    newWfFooterBtn.addEventListener("click", () => this.createWorkflow());
+
+    // ── Table footer (shown in tables mode) ───────────────────────────────
+    this.tableFooterEl = listFooter.createDiv();
+    const newRow = this.tableFooterEl.createDiv({ cls: "duckmage-rt-new-row" });
     const newInput = newRow.createEl("input", {
       type: "text",
       cls: "duckmage-rt-new-input",
@@ -167,7 +210,7 @@ export class RandomTableView extends ItemView {
       text: "+ New",
       cls: "duckmage-rt-new-btn",
     });
-    const fromFolderInput = listFooter.createEl("input", {
+    const fromFolderInput = this.tableFooterEl.createEl("input", {
       type: "text",
       cls: "duckmage-rt-from-folder-input",
       attr: { placeholder: "Generate from folder link (optional)…" },
@@ -194,7 +237,7 @@ export class RandomTableView extends ItemView {
               .sort((a, b) => a.basename.localeCompare(b.basename));
             const rollerLink = this.plugin.buildRollerLink(newPath);
             const entryRows = folderFiles
-              .map((f) => `| ${f.basename} | 1 |`)
+              .map((f) => `| [[${f.basename}]] | 1 |`)
               .join("\n");
             content = `---\ndice: ${this.plugin.settings.defaultTableDice}\nlinked-folder: ${srcFolder}\n---\n\n${rollerLink}\n\n| Result | Weight |\n|--------|--------|\n${entryRows || "|  | 1 |"}\n`;
           } else {
@@ -240,10 +283,19 @@ export class RandomTableView extends ItemView {
       this.app.vault.on("create", (file) => {
         if (file instanceof TFile && !file.basename.startsWith("_") && this.isInTablesFolder(file.path))
           this.scheduleListRefresh();
+        if (file instanceof TFile && !file.basename.startsWith("_") && this.isInWorkflowsFolder(file.path))
+          this.scheduleListRefresh();
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile && this.isInWorkflowsFolder(file.path)) {
+          if (this.activeFile === file) {
+            this.activeFile = null;
+            this.detailEl?.empty();
+          }
+          this.scheduleListRefresh();
+        }
         if (!(file instanceof TFile) || !this.isInTablesFolder(file.path)) return;
         if (this.activeFile === file) {
           this.activeFile = null;
@@ -257,7 +309,9 @@ export class RandomTableView extends ItemView {
         if (!(file instanceof TFile)) return;
         const wasIn = this.isInTablesFolder(oldPath);
         const isIn = this.isInTablesFolder(file.path);
-        if (!wasIn && !isIn) return;
+        const wasInWf = this.isInWorkflowsFolder(oldPath);
+        const isInWf = this.isInWorkflowsFolder(file.path);
+        if (!wasIn && !isIn && !wasInWf && !isInWf) return;
         if (this.activeFile?.path === oldPath) this.activeFile = file;
         this.scheduleListRefresh();
       }),
@@ -307,13 +361,19 @@ export class RandomTableView extends ItemView {
         const table = parseRandomTable(content);
         if (table.entries.some((e) => e.result === createdFile.basename))
           return;
-        // Append new row to the markdown table block in the file
+        // Append new row to the markdown table block in the file, preserving post-table content
+        const suffix = extractPostTableContent(content);
         const newRow = `| ${createdFile.basename} | 1 |`;
-        const updated = content.replace(
+        const replaced = content.replace(
           /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
-          (_, hdr, body) =>
-            `${hdr}${body.trimEnd() ? body.trimEnd() + "\n" : ""}${newRow}\n`,
+          (_, hdr, body) => {
+            const tableLines = body.split("\n")
+              .filter((l: string) => l.trimStart().startsWith("|"))
+              .join("\n");
+            return `${hdr}${tableLines.trimEnd() ? tableLines.trimEnd() + "\n" : ""}${newRow}\n`;
+          },
         );
+        const updated = suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
         await this.app.vault.modify(tableFile, updated);
         await this.loadList();
         if (this.activeFile?.path === tableFilePath) await this.renderDetail();
@@ -341,6 +401,27 @@ export class RandomTableView extends ItemView {
     return !folder || filePath.startsWith(folder + "/");
   }
 
+  private isInWorkflowsFolder(filePath: string): boolean {
+    const folder = normalizeFolder(this.plugin.settings.workflowsFolder);
+    return !!folder && filePath.startsWith(folder + "/");
+  }
+
+  private setViewMode(mode: "tables" | "workflows"): void {
+    this.viewMode = mode;
+    this.tablesBtn?.toggleClass("is-active", mode === "tables");
+    this.workflowsBtn?.toggleClass("is-active", mode === "workflows");
+    if (this.tableFooterEl) this.tableFooterEl.style.display = mode === "tables" ? "" : "none";
+    if (this.workflowFooterEl) this.workflowFooterEl.style.display = mode === "workflows" ? "" : "none";
+    this.filterQuery = "";
+    this.activeFile = null;
+    this.detailEl?.empty();
+    this.detailEl?.createDiv({
+      cls: "duckmage-rt-placeholder",
+      text: mode === "workflows" ? "Select a workflow to view." : "Select a table to view and roll.",
+    });
+    void this.loadList();
+  }
+
   private scheduleListRefresh(): void {
     if (this.listRefreshTimer !== null) clearTimeout(this.listRefreshTimer);
     this.listRefreshTimer = window.setTimeout(() => {
@@ -353,7 +434,11 @@ export class RandomTableView extends ItemView {
     if (this.detailRefreshTimer !== null) clearTimeout(this.detailRefreshTimer);
     this.detailRefreshTimer = window.setTimeout(() => {
       this.detailRefreshTimer = null;
-      void this.renderDetail();
+      if (this.viewMode === "workflows") {
+        void this.renderWorkflowDetail();
+      } else {
+        void this.renderDetail();
+      }
     }, 300);
   }
 
@@ -413,6 +498,11 @@ export class RandomTableView extends ItemView {
     if (!this.listEl) return;
     this.listEl.empty();
 
+    if (this.viewMode === "workflows") {
+      await this.loadWorkflowList();
+      return;
+    }
+
     const folder = normalizeFolder(this.plugin.settings.tablesFolder);
     const prefix = folder ? folder + "/" : "";
 
@@ -442,6 +532,9 @@ export class RandomTableView extends ItemView {
         this.linkedFolderMap.set(normalizeFolder(lf as string), file.path);
     }
 
+    // Rebuild workflow map (table path → [workflow paths])
+    this.rebuildWorkflowMap();
+
     if (files.length === 0) {
       this.listEl.createSpan({
         text: "No tables found.",
@@ -467,6 +560,196 @@ export class RandomTableView extends ItemView {
 
     // When filtering, render flat (expand all) so matches aren't hidden inside collapsed folders
     this.renderTreeNodes(this.listEl, tree, this.filterQuery !== "");
+  }
+
+  private rebuildWorkflowMap(): void {
+    this.workflowMap.clear();
+    const wfFolder = normalizeFolder(this.plugin.settings.workflowsFolder);
+    if (!wfFolder) return;
+    const wfFiles = this.app.vault.getMarkdownFiles()
+      .filter(f => f.path.startsWith(wfFolder + "/") && !f.basename.startsWith("_"));
+    for (const wf of wfFiles) {
+      const links = this.app.metadataCache.getFileCache(wf)?.links ?? [];
+      for (const link of links) {
+        const dest = this.app.metadataCache.getFirstLinkpathDest(link.link, wf.path);
+        if (!dest) continue;
+        const key = dest.path.slice(0, -3);
+        const existing = this.workflowMap.get(key) ?? [];
+        existing.push(wf.path);
+        this.workflowMap.set(key, existing);
+      }
+    }
+  }
+
+  private async loadWorkflowList(): Promise<void> {
+    if (!this.listEl) return;
+    const wfFolder = normalizeFolder(this.plugin.settings.workflowsFolder);
+    if (!wfFolder) {
+      this.listEl.createSpan({
+        text: "No workflows folder configured. Set it in settings.",
+        cls: "duckmage-rt-empty",
+      });
+      return;
+    }
+
+    // Exclude templates subfolder
+    const templatesPath = wfFolder + "/templates/";
+    let files = this.app.vault.getMarkdownFiles()
+      .filter(f => f.path.startsWith(wfFolder + "/")
+        && !f.basename.startsWith("_")
+        && !f.path.startsWith(templatesPath))
+      .sort((a, b) => a.path.localeCompare(b.path));
+
+    if (this.filterQuery) {
+      files = files.filter(f => {
+        const rel = f.path.slice(wfFolder.length + 1);
+        return rel.toLowerCase().includes(this.filterQuery);
+      });
+    }
+
+    if (files.length === 0) {
+      this.listEl.createSpan({
+        text: "No workflows found.",
+        cls: "duckmage-rt-empty",
+      });
+      return;
+    }
+
+    const prefix = wfFolder + "/";
+    const tree = this.buildTree(files, prefix);
+    this.renderWorkflowTreeNodes(this.listEl, tree);
+  }
+
+  private renderWorkflowTreeNodes(container: HTMLElement, nodes: TreeNode[]): void {
+    for (const node of nodes) {
+      if (node.type === "folder") {
+        const isCollapsed = this.collapsedFolders.has("wf:" + node.path);
+        const folderEl = container.createDiv({ cls: "duckmage-rt-folder" });
+        const folderHeader = folderEl.createDiv({ cls: "duckmage-rt-folder-header" });
+        const arrow = folderHeader.createSpan({
+          cls: "duckmage-rt-folder-arrow",
+          text: isCollapsed ? "▶" : "▼",
+        });
+        folderHeader.createSpan({ cls: "duckmage-rt-folder-name", text: node.name });
+
+        const childrenEl = folderEl.createDiv({ cls: "duckmage-rt-folder-children" });
+        if (isCollapsed) childrenEl.style.display = "none";
+        this.renderWorkflowTreeNodes(childrenEl, node.children);
+
+        folderHeader.addEventListener("click", () => {
+          const key = "wf:" + node.path;
+          const nowCollapsed = !this.collapsedFolders.has(key);
+          if (nowCollapsed) {
+            this.collapsedFolders.add(key);
+            childrenEl.style.display = "none";
+            arrow.textContent = "▶";
+          } else {
+            this.collapsedFolders.delete(key);
+            childrenEl.style.display = "";
+            arrow.textContent = "▼";
+          }
+        });
+      } else {
+        const row = container.createDiv({ cls: "duckmage-rt-workflow-item" });
+        if (node.file === this.activeFile) row.addClass("is-active");
+        row.setText(node.file.basename);
+        row.title = node.file.path;
+        row.addEventListener("click", () => this.loadWorkflow(node.file));
+      }
+    }
+  }
+
+  private async createWorkflow(initialTablePath?: string): Promise<void> {
+    const wfFolder = normalizeFolder(this.plugin.settings.workflowsFolder);
+    if (!wfFolder) {
+      new Notice("Configure a workflows folder in settings first.");
+      return;
+    }
+    if (!this.app.vault.getAbstractFileByPath(wfFolder)) {
+      try { await this.app.vault.createFolder(wfFolder); } catch { /* may exist */ }
+    }
+
+    // Find unique name
+    let baseName = "New Workflow";
+    let i = 2;
+    while (this.app.vault.getAbstractFileByPath(`${wfFolder}/${baseName}.md`)) {
+      baseName = `New Workflow ${i++}`;
+    }
+
+    const steps = initialTablePath
+      ? `| [[${initialTablePath}]] | 1 |  |\n`
+      : "";
+    const content = `---\n---\n\n| Table | Rolls | Label |\n|-------|-------|-------|\n${steps}`;
+    const newPath = `${wfFolder}/${baseName}.md`;
+
+    try {
+      const file = await this.app.vault.create(newPath, content);
+      await this.loadList();
+      await this.loadWorkflow(file);
+      new WorkflowEditorModal(this.app, this.plugin, file, () => {
+        void this.loadList();
+        if (this.activeFile === file) void this.renderWorkflowDetail();
+      }).open();
+    } catch (err) {
+      new Notice(`Could not create workflow: ${err}`);
+    }
+  }
+
+  private async loadWorkflow(file: TFile): Promise<void> {
+    this.activeFile = file;
+    this.listEl?.querySelectorAll<HTMLElement>(".duckmage-rt-workflow-item")
+      .forEach(el => el.toggleClass("is-active", el.title === file.path));
+    await this.renderWorkflowDetail();
+  }
+
+  private async renderWorkflowDetail(): Promise<void> {
+    if (!this.detailEl || !this.activeFile) return;
+    const file = this.activeFile;
+    const content = await this.app.vault.read(file);
+    const workflow = parseWorkflow(content, file.basename);
+
+    this.detailEl.empty();
+
+    // ── Header ─────────────────────────────────────────────────────────
+    const header = this.detailEl.createDiv({ cls: "duckmage-rt-detail-header" });
+    header.createEl("h3", { text: file.basename, cls: "duckmage-rt-detail-title" });
+
+    const editLink = header.createEl("a", { text: "Edit", cls: "duckmage-rt-edit-link" });
+    editLink.addEventListener("click", () => {
+      new WorkflowEditorModal(this.app, this.plugin, file, () => {
+        void this.loadList();
+        if (this.activeFile === file) void this.renderWorkflowDetail();
+      }).open();
+    });
+
+    const runBtn = this.detailEl.createEl("button", {
+      text: "Roll workflow",
+      cls: "duckmage-rt-roll-btn mod-cta",
+    });
+    runBtn.style.marginBottom = "12px";
+    runBtn.addEventListener("click", () => {
+      new WorkflowWizardModal(this.app, this.plugin, file).open();
+    });
+
+    // ── Steps list ─────────────────────────────────────────────────────
+    if (workflow.steps.length === 0) {
+      this.detailEl.createDiv({
+        cls: "duckmage-rt-empty",
+        text: "No steps. Click Edit to add steps.",
+      });
+    } else {
+      const stepsEl = this.detailEl.createDiv({ cls: "duckmage-wf-detail-steps" });
+      stepsEl.createEl("p", { text: "Steps", cls: "duckmage-rt-history-label" });
+      const list = stepsEl.createEl("ul");
+      list.style.margin = "0";
+      list.style.paddingLeft = "18px";
+      for (const step of workflow.steps) {
+        const li = list.createEl("li");
+        const tableName = step.tablePath.split("/").pop() ?? step.tablePath;
+        const label = step.label ? `${step.label}: ` : "";
+        li.createSpan({ text: `${label}${tableName} ×${step.rolls}` });
+      }
+    }
   }
 
   private renderTreeNodes(
@@ -764,11 +1047,13 @@ export class RandomTableView extends ItemView {
       .map(f => ({ result: f.basename, weight: 1 }));
     const newEntries = [...kept, ...added];
 
+    const suffix = extractPostTableContent(content);
     const rows = newEntries.map(e => `| ${e.result} | ${e.weight} |`).join("\n");
-    const updated = content.replace(
+    const replaced = content.replace(
       /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
       `$1${rows}\n`,
     );
+    const updated = suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
     if (updated !== content) await this.app.vault.modify(tableFile, updated);
   }
 
@@ -1001,6 +1286,41 @@ export class RandomTableView extends ItemView {
     rollBtn.addEventListener("click", () => {
       this.doRoll(table, resultBox, resultTextarea, historyEl, openNoteBtn);
     });
+
+    // ── Used by workflows ───────────────────────────────────────────────
+    const tableKey = file.path.slice(0, -3); // remove .md
+    const usingWorkflows = this.workflowMap.get(tableKey) ?? [];
+    if (usingWorkflows.length > 0 || this.plugin.settings.workflowsFolder) {
+      const usedBySection = this.detailEl.createDiv({ cls: "duckmage-rt-used-by" });
+      usedBySection.createDiv({ text: "Workflows using this table", cls: "duckmage-rt-used-by-label" });
+      const linksEl = usedBySection.createDiv({ cls: "duckmage-rt-used-by-links" });
+
+      for (const wfPath of usingWorkflows) {
+        const wfFile = this.app.vault.getAbstractFileByPath(wfPath);
+        if (!(wfFile instanceof TFile)) continue;
+        const link = linksEl.createEl("a", {
+          text: wfFile.basename,
+          cls: "duckmage-rt-entry-link",
+        });
+        link.addEventListener("click", () => {
+          this.setViewMode("workflows");
+          // After mode switch, select the workflow
+          setTimeout(() => {
+            if (wfFile instanceof TFile) void this.loadWorkflow(wfFile);
+          }, 50);
+        });
+      }
+
+      const newWfLink = linksEl.createEl("a", {
+        text: "+ New workflow with this table",
+        cls: "duckmage-rt-entry-link",
+      });
+      newWfLink.style.fontStyle = "italic";
+      newWfLink.addEventListener("click", async () => {
+        this.setViewMode("workflows");
+        await this.createWorkflow(tableKey);
+      });
+    }
   }
 
   private doRoll(

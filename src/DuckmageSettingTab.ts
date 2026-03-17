@@ -40,7 +40,8 @@ export class DuckmageSettingTab extends PluginSettingTab {
 						["questsFolder",   `${world}/quests`],
 						["featuresFolder", `${world}/features`],
 						["factionsFolder", `${world}/factions`],
-						["tablesFolder",   `${world}/tables`],
+						["tablesFolder",      `${world}/tables`],
+					["workflowsFolder",  `${world}/workflows`],
 					];
 					for (const [key, path] of defaults) {
 						if (!this.plugin.settings[key]) {
@@ -162,6 +163,19 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.tablesFolder)
 					.onChange(async value => {
 						this.plugin.settings.tablesFolder = normalizeFolder(value ?? "");
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Workflows folder")
+			.setDesc("Vault-relative folder for workflow notes. Browsable from the Random Tables view via the Workflows tab.")
+			.addText(text =>
+				text
+					.setPlaceholder("world/workflows")
+					.setValue(this.plugin.settings.workflowsFolder)
+					.onChange(async value => {
+						this.plugin.settings.workflowsFolder = normalizeFolder(value ?? "");
 						await this.plugin.saveSettings();
 					}),
 			);

@@ -1,5 +1,5 @@
 import { App, Modal, TFile } from "obsidian";
-import { parseRandomTable } from "./randomTable";
+import { parseRandomTable, extractPostTableContent } from "./randomTable";
 import type { RandomTableEntry } from "./randomTable";
 import type DuckmagePlugin from "./DuckmagePlugin";
 import { normalizeFolder } from "./utils";
@@ -254,6 +254,7 @@ export class RandomTableEditorModal extends Modal {
 		// Expose so onClose always saves all changes (flushes pending "add row" text first)
 		this.flushAndSave = async () => {
 			doAdd(); // flush pending "add row" text if any (no-op if empty)
+			const suffix = extractPostTableContent(rawContent) || undefined;
 			let updatedFm = this.setFrontmatterBool(frontmatter, "roll-filter",
 				rollFilterCb.checked ? false : undefined);
 			updatedFm = this.setFrontmatterBool(updatedFm, "encounter-filter",
@@ -270,7 +271,7 @@ export class RandomTableEditorModal extends Modal {
 			const rollerLink = rollerLinkMatch ? rollerLinkMatch[0] : "";
 			const newDescription = descInput.value.trim();
 			const newPreamble = [rollerLink, newDescription].filter(Boolean).join("\n\n");
-			const newContent = this.buildContent(updatedFm, newPreamble, entries, linkedFolder || undefined);
+			const newContent = this.buildContent(updatedFm, newPreamble, entries, linkedFolder || undefined, suffix);
 			try {
 				await this.app.vault.modify(this.file, newContent);
 				this.onSaved?.();
@@ -450,7 +451,7 @@ export class RandomTableEditorModal extends Modal {
 		return afterFm.slice(0, tableMatch.index).trim();
 	}
 
-	private buildContent(frontmatter: string, preamble: string, entries: RandomTableEntry[], linkedFolder?: string): string {
+	private buildContent(frontmatter: string, preamble: string, entries: RandomTableEntry[], linkedFolder?: string, suffix?: string): string {
 		const rows = entries.map(e => {
 			const cell = (linkedFolder || e.isLink) ? `[[${e.result}]]` : e.result;
 			return `| ${cell} | ${e.weight} |`;
@@ -460,6 +461,8 @@ export class RandomTableEditorModal extends Modal {
 		if (frontmatter) parts.push(frontmatter);
 		if (preamble) parts.push(preamble);
 		parts.push(tableBlock);
-		return parts.join("\n\n") + "\n";
+		let result = parts.join("\n\n") + "\n";
+		if (suffix) result += "\n" + suffix;
+		return result;
 	}
 }

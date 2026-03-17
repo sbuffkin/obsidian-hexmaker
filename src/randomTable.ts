@@ -72,6 +72,24 @@ export function parseRandomTable(content: string): RandomTable {
 	return { dice, entries, linkedFolder, description };
 }
 
+/**
+ * Return any content that appears after the markdown table in a random table file.
+ * Finds the last line starting with `|`, then returns everything after it (leading
+ * blank lines stripped). Returns "" if nothing follows the table.
+ */
+export function extractPostTableContent(content: string): string {
+	const tableHeaderMatch = /\| Result \| Weight \|/m.exec(content);
+	if (!tableHeaderMatch) return "";
+	const afterHeader = content.slice(tableHeaderMatch.index);
+	const lines = afterHeader.split("\n");
+	let lastPipeIdx = -1;
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].trimStart().startsWith("|")) lastPipeIdx = i;
+	}
+	if (lastPipeIdx === -1) return "";
+	return lines.slice(lastPipeIdx + 1).join("\n").replace(/^\n+/, "");
+}
+
 /** Weighted random selection. Returns a random entry. */
 export function rollOnTable(table: RandomTable): RandomTableEntry | null {
 	if (table.entries.length === 0) return null;

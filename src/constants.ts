@@ -126,4 +126,5 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   rollTableExcludedFolders: ["terrain"],
   encounterTableExcludedFolders: ["terrain"],
   defaultRegion: "default",
+  workflowsFolder: "",
 };
