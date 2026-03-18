@@ -180,6 +180,7 @@ export class WorkflowWizardModal extends Modal {
 
 				const rollBtn = rollRow.createEl("button", {
 					text: this.rolls[si][ri] !== null ? "Reroll" : "Roll",
+					cls: "duckmage-wf-roll-btn",
 				});
 				rollBtn.addEventListener("click", async () => {
 					rollBtn.disabled = true;

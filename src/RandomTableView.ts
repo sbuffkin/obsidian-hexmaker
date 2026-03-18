@@ -24,7 +24,7 @@ import {
   type RandomTable,
   type RandomTableEntry,
 } from "./randomTable";
-import { parseWorkflow } from "./workflow";
+import { parseWorkflow, generateDefaultTemplate } from "./workflow";
 
 const DIE_OPTIONS = [
   { label: "— no die —", value: 0 },
@@ -389,6 +389,7 @@ export class RandomTableView extends ItemView {
   async openTable(filePath: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(filePath);
     if (file instanceof TFile) {
+      if (this.viewMode !== "tables") this.setViewMode("tables");
       await this.loadList();
       this.loadTable(file);
     }
@@ -655,6 +656,25 @@ export class RandomTableView extends ItemView {
         row.setText(node.file.basename);
         row.title = node.file.path;
         row.addEventListener("click", () => this.loadWorkflow(node.file));
+        row.addEventListener("contextmenu", (e: MouseEvent) => {
+          e.preventDefault();
+          const menu = new Menu();
+          menu.addItem((item) => {
+            item.setTitle("Delete workflow");
+            item.setIcon("trash");
+            item.onClick(() => {
+              new ConfirmDeleteModal(this.app, node.file.basename, async () => {
+                await this.app.fileManager.trashFile(node.file);
+                if (this.activeFile === node.file) {
+                  this.activeFile = null;
+                  this.detailEl?.empty();
+                }
+                await this.loadList();
+              }).open();
+            });
+          });
+          menu.showAtMouseEvent(e);
+        });
       }
     }
   }
@@ -676,8 +696,11 @@ export class RandomTableView extends ItemView {
       baseName = `New Workflow ${i++}`;
     }
 
+    const autoLabel = initialTablePath
+      ? (initialTablePath.split("/").pop() ?? initialTablePath).replace(/ /g, "_")
+      : "";
     const steps = initialTablePath
-      ? `| [[${initialTablePath}]] | 1 |  |\n`
+      ? `| [[${initialTablePath}]] | 1 | ${autoLabel} |\n`
       : "";
     const content = `---\n---\n\n| Table | Rolls | Label |\n|-------|-------|-------|\n${steps}`;
     const newPath = `${wfFolder}/${baseName}.md`;
@@ -715,11 +738,21 @@ export class RandomTableView extends ItemView {
     header.createEl("h3", { text: file.basename, cls: "duckmage-rt-detail-title" });
 
     const editLink = header.createEl("a", { text: "Edit", cls: "duckmage-rt-edit-link" });
-    editLink.addEventListener("click", () => {
+    editLink.addEventListener("click", async () => {
+      const content = await this.app.vault.read(file);
+      const wf = parseWorkflow(content, file.basename);
+      let tmplContent = "";
+      if (wf.templateFile) {
+        const tmplFile = this.app.vault.getAbstractFileByPath(wf.templateFile);
+        if (tmplFile instanceof TFile) {
+          tmplContent = await this.app.vault.read(tmplFile);
+        }
+      }
+      if (!tmplContent) tmplContent = generateDefaultTemplate(wf.steps);
       new WorkflowEditorModal(this.app, this.plugin, file, () => {
         void this.loadList();
         if (this.activeFile === file) void this.renderWorkflowDetail();
-      }).open();
+      }, { content, templateContent: tmplContent }).open();
     });
 
     const runBtn = this.detailEl.createEl("button", {
@@ -1083,9 +1116,10 @@ export class RandomTableView extends ItemView {
       text: "Edit",
       cls: "duckmage-rt-edit-link",
     });
-    editLink.addEventListener("click", () => {
+    editLink.addEventListener("click", async () => {
+      const content = await this.app.vault.read(file);
       new RandomTableEditorModal(this.app, this.plugin, file, () =>
-        this.renderDetail(),
+        this.renderDetail(), content,
       ).open();
     });
 

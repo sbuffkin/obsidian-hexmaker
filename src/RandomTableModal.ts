@@ -90,14 +90,15 @@ export class RandomTableModal extends Modal {
 		const headerRow = contentEl.createDiv({ cls: "duckmage-roll-modal-header-row" });
 		headerRow.createEl("strong", { text: file.basename });
 		const editLink = headerRow.createEl("a", { text: "Edit", cls: "duckmage-roll-modal-edit-link" });
-		editLink.addEventListener("click", () => {
+		editLink.addEventListener("click", async () => {
+			const content = await this.app.vault.read(file);
 			new RandomTableEditorModal(this.app, this.plugin, file, async () => {
 				// Reload the table in place after saving
 				tableContainer.empty();
 				resultBox.el.style.display = "none";
 				rollBtn.disabled = true;
 				await this.renderOddsTable(tableContainer, resultBox, rollBtn, file);
-			}).open();
+			}, content).open();
 		});
 		const openLink = headerRow.createEl("a", { text: "Open in roller view", cls: "duckmage-roll-modal-open-link" });
 		openLink.addEventListener("click", () => { this.openInRoller(file.path); });

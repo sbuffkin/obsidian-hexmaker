@@ -6,6 +6,7 @@ import {
   VIEW_TYPE_RANDOM_TABLES,
 } from "./constants";
 import type { HexMapView } from "./HexMapView";
+import type { RandomTableView } from "./RandomTableView";
 import {
   getAllSectionData,
   setSectionContent,
@@ -15,7 +16,6 @@ import {
 import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
 import { getIconUrl, normalizeFolder, makeTableTemplate, createIconEl } from "./utils";
 import type { TerrainColor, LinkSection } from "./types";
-import { RandomTableModal } from "./RandomTableModal";
 
 // Column definitions in template order
 const COLUMNS: { key: string; label: string; isLink: boolean }[] = [
@@ -29,7 +29,6 @@ const COLUMNS: { key: string; label: string; isLink: boolean }[] = [
   { key: "encounters table", label: "Enc. Table", isLink: true },
   { key: "hidden", label: "Hidden", isLink: false },
   { key: "secret", label: "Secret", isLink: false },
-  { key: "encounters", label: "Encounters", isLink: false },
   { key: "weather", label: "Weather", isLink: false },
   { key: "hooks & rumors", label: "Hooks & Rumors", isLink: false },
 ];
@@ -1036,7 +1035,10 @@ export class HexTableView extends ItemView {
         if (linkList.length > 0) {
           const full = linkList.join(", ");
           td.dataset.fullContent = full;
-          td.setText(full);
+          const display = col.key === "encounters table"
+            ? linkList.map(l => l.split("/").pop() ?? l).join(", ")
+            : full;
+          td.setText(display);
         } else {
           td.createSpan({ text: "–", cls: "duckmage-hex-table-empty" });
         }
@@ -1059,7 +1061,7 @@ export class HexTableView extends ItemView {
                 ? "Dungeons"
                 : "Encounters Table";
           td.addClass("duckmage-hex-table-cell-clickable");
-          td.addEventListener("click", () => {
+          td.addEventListener("click", async () => {
             if (linkList.length === 0) {
               new LinkPickerModal(
                 this.app,
@@ -1079,9 +1081,11 @@ export class HexTableView extends ItemView {
                   path,
                 );
                 if (file instanceof TFile) {
-                  new RandomTableModal(this.app, this.plugin, (result) => {
-                    navigator.clipboard.writeText(result);
-                  }).open();
+                  const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_RANDOM_TABLES);
+                  const leaf = leaves.length > 0 ? leaves[0] : this.app.workspace.getLeaf("tab");
+                  await leaf.setViewState({ type: VIEW_TYPE_RANDOM_TABLES, active: true });
+                  this.app.workspace.revealLeaf(leaf);
+                  await (leaf.view as RandomTableView).openTable(file.path);
                 }
               } else {
                 const file = this.app.metadataCache.getFirstLinkpathDest(
@@ -1168,7 +1172,7 @@ export class HexTableView extends ItemView {
 
     // Default widths (px): Hex, Terrain, then one per COLUMN entry
     const defaultWidths = [
-      60, 110, 220, 160, 150, 150, 150, 140, 160, 160, 160, 140, 190,
+      60, 110, 220, 160, 150, 150, 150, 140, 160, 160, 160, 140,
     ];
 
     // <col> elements + explicit table width is the only reliable way to drive

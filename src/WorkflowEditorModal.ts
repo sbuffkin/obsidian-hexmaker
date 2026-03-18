@@ -29,6 +29,7 @@ export class WorkflowEditorModal extends Modal {
 		private plugin: DuckmagePlugin,
 		private file: TFile,
 		private onSaved?: () => void,
+		private preloaded?: { content: string; templateContent: string },
 	) {
 		super(app);
 	}
@@ -38,7 +39,7 @@ export class WorkflowEditorModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass("duckmage-wf-editor");
 
-		const rawContent = await this.app.vault.read(this.file);
+		const rawContent = this.preloaded?.content ?? await this.app.vault.read(this.file);
 		const workflow = parseWorkflow(rawContent, this.file.basename);
 
 		// Working copies
@@ -47,7 +48,9 @@ export class WorkflowEditorModal extends Modal {
 		let templateContent = "";
 
 		// Load template file if it exists
-		if (workflow.templateFile) {
+		if (this.preloaded !== undefined) {
+			templateContent = this.preloaded.templateContent;
+		} else if (workflow.templateFile) {
 			const tmplFile = this.app.vault.getAbstractFileByPath(workflow.templateFile);
 			if (tmplFile instanceof TFile) {
 				templateContent = await this.app.vault.read(tmplFile);
@@ -330,20 +333,6 @@ export class WorkflowEditorModal extends Modal {
 			addLabelInput.value = "";
 			renderSteps();
 			appendStepToTemplate(steps[steps.length - 1]);
-		});
-
-		// Reset template
-		const resetTemplateBtn = contentEl.createEl("button", { text: "Reset template" });
-		resetTemplateBtn.style.marginTop = "4px";
-		resetTemplateBtn.addEventListener("click", () => {
-			const defaultTmpl = generateDefaultTemplate(steps);
-			const current = templateArea.value.trim();
-			if (current && current !== defaultTmpl.trim()) {
-				if (!confirm("Reset template? Your custom content will be overwritten.")) return;
-			}
-			templateArea.value = defaultTmpl;
-			templateContent = defaultTmpl;
-			updateValidation();
 		});
 
 		renderSteps();

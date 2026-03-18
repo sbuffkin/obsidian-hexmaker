@@ -42,13 +42,6 @@ Revealed only through specific actions, NPCs, or investigation.
 
 
 ---
-
-### encounters
-
-- **Table:** *(terrain from world/encounters)*
-- **Custom / notable:**
-
----
 Normal for region, or special (e.g. always pleasant, sandstorms, magic zone effect).
 
 ### weather

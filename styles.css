@@ -333,6 +333,7 @@ div.duckmage-hex-icon {
 }
 .duckmage-editor-modal-drag .modal-content {
     overflow-y: auto;
+    overflow-x: hidden;
     max-height: none;
     height: calc(100% - var(--modal-title-size, 0px));
 }
@@ -2511,19 +2512,28 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
     align-items: center;
     gap: 8px;
     padding: 4px 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 .duckmage-wf-roll-input {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     font-style: italic;
     color: var(--text-muted);
 }
 .duckmage-wf-pick-select {
-    flex: 1;
+    flex: 0 0 90px;
+    width: 90px;
     min-width: 0;
 }
 .duckmage-wf-roll-input.is-rolled {
     font-style: normal;
     color: var(--text-normal);
+}
+.duckmage-wf-roll-btn {
+    flex: 0 0 auto;
+    width: 60px;
+    text-align: center;
 }
 
 /* Workflow template area */
@@ -2560,15 +2570,23 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
     align-items: center;
     gap: 6px;
     margin-bottom: 4px;
+    width: 100%;
+    box-sizing: border-box;
 }
 .duckmage-wf-editor-step-row select {
-    flex: 2;
+    flex: 2 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .duckmage-wf-editor-step-row input[type="number"] {
+    flex: 0 0 52px;
     width: 52px;
+    min-width: 0;
 }
 .duckmage-wf-editor-step-row input[type="text"] {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 /* "Used by workflows" section in table detail */

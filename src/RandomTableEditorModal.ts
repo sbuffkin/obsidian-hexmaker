@@ -19,6 +19,7 @@ export class RandomTableEditorModal extends Modal {
 		private plugin: DuckmagePlugin,
 		private file: TFile,
 		private onSaved?: () => void,
+		private initialContent?: string,
 	) {
 		super(app);
 	}
@@ -28,7 +29,7 @@ export class RandomTableEditorModal extends Modal {
 		const { contentEl } = this;
 		contentEl.addClass("duckmage-table-editor");
 
-		const rawContent = await this.app.vault.read(this.file);
+		const rawContent = this.initialContent ?? await this.app.vault.read(this.file);
 		const table = parseRandomTable(rawContent);
 		const frontmatter = this.extractFrontmatter(rawContent);
 		const preamble = this.extractPreamble(rawContent, frontmatter);

@@ -11,15 +11,18 @@ npm run dev
 # Production build (type-checks then bundles)
 npm run build
 
+# Run tests (vitest)
+npm test
+
 # Bump version (updates manifest.json and versions.json, stages both)
 npm run version
 ```
 
 Slash commands (invoke inside Claude Code):
 - `/dev` — starts esbuild in watch mode (long-running; pairs with Hot Reload)
-- `/rebuild` — one-off production build; reports errors if the build fails
+- `/rebuild` — one-off production build + test run; reports errors if either fails
 
-There are no tests. The built output is `main.js` in the repo root, which Obsidian loads directly from this plugin folder.
+**Always run `/rebuild` after making code changes.** The TypeScript type-check and test suite are the only automated verification — catch errors before the user does.
 
 ## Dev loop
 
@@ -29,7 +32,7 @@ Each coding session:
    ```js
    app.plugins.disablePlugin('duckmage-plugin'); app.plugins.enablePlugin('duckmage-plugin');
    ```
-3. Use `/rebuild` for a final production build before committing (runs the TypeScript type-check too)
+3. Use `/rebuild` for a final production build before committing (runs the TypeScript type-check and tests too)
 
 ## Architecture
 
@@ -47,12 +50,17 @@ src/
   HexEditorModal.ts              ← Modal — right-click per-hex editor (terrain, links, notes, icon override)
   HexTableView.ts                ← ItemView — spreadsheet view of all hex notes with filters/sort
   TerrainPickerModal.ts          ← Modal — full terrain palette picker for the terrain paint tool
+  TerrainEntryEditorModal.ts     ← Modal — edit a single terrain palette entry (name, color, icon)
   IconPickerModal.ts             ← Modal — icon picker for the icon paint tool
+  RegionModal.ts                 ← Modal — switch active region, create/rename/delete regions
   FileLinkSuggestModal.ts        ← SuggestModal — file picker scoped to worldFolder
-  RandomTableView.ts             ← ItemView — random table browser (folder tree, roll, edit)
+  RandomTableView.ts             ← ItemView — random table + workflow browser (tabbed: Tables / Workflows)
   RandomTableModal.ts            ← Modal — inline roll modal used from HexEditorModal
   RandomTableEditorModal.ts      ← Modal — edit entries of a random table file
+  WorkflowEditorModal.ts         ← Modal — edit workflow definition (steps, template, results folder)
+  WorkflowWizardModal.ts         ← Modal — execute a workflow (roll steps, fill template, save as note)
   randomTable.ts                 ← Pure logic: parse, roll, weight, die-range helpers
+  workflow.ts                    ← Pure logic: parse/serialize workflows, generate templates, placeholder helpers
   DuckmageSettingTab.ts          ← PluginSettingTab — settings UI
   types.ts                       ← Interfaces & type constants (TerrainColor, DuckmagePluginSettings, LINK_SECTIONS, TEXT_SECTIONS)
   constants.ts                   ← Runtime constants (VIEW_TYPE_*, DEFAULT_TERRAIN_PALETTE, DEFAULT_SETTINGS)
@@ -67,7 +75,7 @@ The `.md` loader is configured in `esbuild.config.mjs` (`loader: { '.md': 'text'
 
 ### Plugin purpose
 
-Renders an interactive hex-grid map for tabletop RPG world-building inside Obsidian. Each hex cell corresponds to a Markdown note on disk. The map supports terrain painting, icon painting, road/river chain drawing, link-to-hex tools (random tables, factions), panning, and zooming. A spreadsheet view summarises all hex notes with filtering. A random tables view lets users browse, roll, and edit weighted random tables.
+Renders an interactive hex-grid map for tabletop RPG world-building inside Obsidian. Each hex cell corresponds to a Markdown note on disk. The map supports terrain painting, icon painting, road/river chain drawing, link-to-hex tools (random tables, factions), panning, and zooming. A spreadsheet view summarises all hex notes with filtering. A random tables view lets users browse, roll, and edit weighted random tables, and execute multi-step workflows that chain table rolls into a filled template note.
 
 ### Key classes
 
@@ -91,27 +99,46 @@ Renders an interactive hex-grid map for tabletop RPG world-building inside Obsid
   - Right-click: opens `HexEditorModal` (normal), deletes road/river node, or exits current tool mode.
   - Expand buttons (+) grow the grid in four cardinal directions, adjusting `gridOffset` and `gridSize` in settings.
   - **`centerOnHex(x, y)`** (public) — pans the viewport to centre on a given hex coordinate.
+  - **`activeRegionName`** (public) — the currently displayed region name.
 
 - **`HexEditorModal`** (`src/HexEditorModal.ts`, extends `Modal`) — The right-click per-hex editor:
   - Terrain picker (2-row scrollable grid) with icon override and "Clear terrain".
   - Dropdown link sections for **Towns, Dungeons, Features, Quests, Factions, Encounters Table** — each backed by its own configured folder, rendered via `renderDropdownSection`. Uses `LinkPickerModal` internally (file list + create-new).
-  - Free-text note sections: Description, Landmark, Hidden, Secret, Encounters, Weather, Hooks & Rumors.
+  - Free-text note sections: Description, Landmark, Hidden, Secret, Weather, Hooks & Rumors.
   - Fetches all section data in a single read before touching the DOM (`getAllSectionData`).
 
 - **`HexTableView`** (`src/HexTableView.ts`, extends `ItemView`) — Spreadsheet of all hex notes:
-  - Columns: Hex (coords + jump button), Terrain, Description, Landmark, Towns, Dungeons, Features, Quests, Factions, Enc. Table, Hidden, Secret, Encounters, Weather, Hooks & Rumors.
-  - Toolbar filters: X/Y range inputs, terrain multi-select (left-click include / right-click exclude), Has Town/Dungeon/Feature/Quest/Faction checkboxes, X→Y / Y→X sort priority, Asc/Desc direction.
+  - Columns: Hex (coords + jump button), Terrain, Description, Landmark, Towns, Dungeons, Features, Quests, Factions, Enc. Table, Hidden, Secret, Weather, Hooks & Rumors.
+  - Enc. Table cell shows the basename of the linked table file; clicking opens `RandomTableView` at that file.
+  - Toolbar filters: X/Y range inputs, terrain multi-select (left-click include / right-click exclude), Has Town/Dungeon/Feature/Quest/Faction checkboxes, region selector, X→Y / Y→X sort priority, Asc/Desc direction.
   - Live updates on vault `modify` events (300 ms debounce per file).
   - Jump button (◎) calls `HexMapView.centerOnHex(x, y)` on the open map view.
 
-- **`RandomTableView`** (`src/RandomTableView.ts`, extends `ItemView`) — Random table browser:
-  - Left column: folder tree (collapsible) + search filter + new-table creator.
-  - Right column: table detail — entries with die-range and % odds, die-size selector, Roll button, copy result, roll history.
-  - Edit button opens `RandomTableEditorModal`.
+- **`RandomTableView`** (`src/RandomTableView.ts`, extends `ItemView`) — Tabbed browser with two modes:
+  - **Tables mode**: folder tree + search + new-table creator. Detail pane shows entries with die-range and % odds, die-size selector, Roll button, copy result, roll history. Edit opens `RandomTableEditorModal`.
+  - **Workflows mode**: folder tree of workflow files. Detail pane shows steps summary and a "Roll workflow" button. Edit opens `WorkflowEditorModal`.
+  - **`openTable(filePath)`** (public) — switches to Tables mode and loads a specific table file; called from `HexTableView` when clicking an Enc. Table cell.
 
 - **`RandomTableModal`** (`src/RandomTableModal.ts`, extends `Modal`) — Lightweight inline roll modal opened from `HexEditorModal` (🎲 button per link section or 📖 for terrain description). Skips the picker if `initialFilePath` is supplied.
 
-- **`RandomTableEditorModal`** (`src/RandomTableEditorModal.ts`, extends `Modal`) — Edit table entries (result text + weight) and save back to the file.
+- **`RandomTableEditorModal`** (`src/RandomTableEditorModal.ts`, extends `Modal`) — Edit table entries (result text + weight), linked folder, description, filter flags. Auto-saves on close. Accepts optional `initialContent` to avoid a redundant vault read when the caller already has the file content.
+
+- **`WorkflowEditorModal`** (`src/WorkflowEditorModal.ts`, extends `Modal`) — Edit a workflow definition:
+  - Rename workflow, set results folder, manage steps (table picker + roll count + label) with drag-to-reorder.
+  - Template textarea with live placeholder validation — shows missing `$placeholder` names.
+  - Template auto-syncs when steps are added or labels change.
+  - Auto-saves workflow file and template file on close. Modal is draggable by its title bar.
+
+- **`WorkflowWizardModal`** (`src/WorkflowWizardModal.ts`, extends `Modal`) — Execute a workflow:
+  - Shows each step with a manual-pick dropdown and a Roll button. Fixed-width controls to prevent layout shift on roll.
+  - Result textarea shows the template filled with rolled values.
+  - Save section writes the filled result as a new vault note in the configured results folder.
+
+- **`RegionModal`** (`src/RegionModal.ts`, extends `Modal`) — Manage hex map regions:
+  - Switch the active region displayed on the hex map.
+  - Create, rename, and delete regions. Regions map to subfolders under `hexFolder`.
+
+- **`TerrainEntryEditorModal`** (`src/TerrainEntryEditorModal.ts`, extends `Modal`) — Edit a single terrain palette entry: name, color, icon (with preview), and icon color tint. Changes are staged in pending fields and only written to the palette on Save.
 
 - **`TerrainPickerModal`** (`src/TerrainPickerModal.ts`) — Full terrain palette picker (no row cap). Includes "Clear" to erase terrain.
 
@@ -121,22 +148,23 @@ Renders an interactive hex-grid map for tabletop RPG world-building inside Obsid
 
 - **`DuckmageSettingTab`** (`src/DuckmageSettingTab.ts`) — Settings UI:
   - "Generate folders" button — fills blank folder settings with defaults under `worldFolder` and creates the folders.
-  - Folder paths: world, hexes, towns, dungeons, quests, features, factions, tables.
+  - Folder paths: world, hexes, towns, dungeons, quests, features, factions, tables, workflows.
   - "Generate terrain tables & hex links" button — runs `ensureTerrainTables`, `ensureAllRollerLinks`, `backfillTerrainLinks`.
-  - Hex orientation, grid dimensions, hex gap, custom icons folder, road/river colors, terrain palette editor (drag-to-reorder).
+  - Hex orientation, grid dimensions, hex gap, custom icons folder, road/river colors, terrain palette editor (drag-to-reorder, click entry to open `TerrainEntryEditorModal`).
 
 ### Data model
 
-- **Hex notes**: `{hexFolder}/{x}_{y}.md`. Created via `createHexNote(x, y)` using the configured template or `defaultHexTemplate.md`.
+- **Hex notes**: `{hexFolder}/{region}/{x}_{y}.md`. Created via `createHexNote(x, y, region)` using the configured template or `defaultHexTemplate.md`.
 - **Template placeholders**: `{{x}}`, `{{y}}`, `{{title}}`. Template must include `### Towns`, `### Dungeons`, `### Features`, `### Quests`, `### Factions`, `### Encounters Table` headings.
 - **Terrain**: YAML frontmatter `terrain: <name>`. Read via `getTerrainFromFile` (metadata cache); written via `setTerrainInFile` (raw text patch). Both in `frontmatter.ts`.
 - **Icon override**: frontmatter `icon: <filename>`. Read via `getIconOverrideFromFile`; written via `setIconOverrideInFile`.
 - **Terrain icons**: plugin `icons/` folder + user custom icons folder → `plugin.availableIcons`. URLs via `getIconUrl(plugin, filename)`. Vault-sourced filenames tracked in `plugin.vaultIconsSet`.
 - **Roads & rivers**: `settings.roadChains` / `settings.riverChains` — arrays of `string[]` chains, each element `"x_y"`. Drawn as SVG polylines over the grid.
 - **Link sections** (`LINK_SECTIONS`): `"Towns" | "Dungeons" | "Features" | "Quests" | "Factions" | "Encounters Table"`. Wiki-links inserted under the matching `###` heading via `addLinkToSection`. Read back via `getLinksInSection`.
-- **Text sections** (`TEXT_SECTIONS`): Description, Landmark, Hidden, Secret, Encounters, Weather, Hooks & Rumors. Free text stored under `###` headings.
+- **Text sections** (`TEXT_SECTIONS`): Description, Landmark, Hidden, Secret. Free text stored under `###` headings. Weather and Hooks & Rumors are also text sections but not in the `TEXT_SECTIONS` constant.
 - **Random tables**: Markdown files with YAML `dice: N` frontmatter and a `| Result | Weight |` table. Parsed by `randomTable.ts`. Stored under `tablesFolder` (default `world/tables`). Terrain tables live at `{tablesFolder}/terrain/{name} - {description|encounters}.md`.
-- **Settings** (`data.json`): `worldFolder`, `hexFolder`, `townsFolder`, `dungeonsFolder`, `questsFolder`, `featuresFolder`, `factionsFolder`, `tablesFolder`, `iconsFolder`, `templatePath`, `hexGap`, `hexOrientation`, `terrainPalette`, `gridSize`, `gridOffset`, `zoomLevel`, `roadChains`, `riverChains`, `roadColor`, `riverColor`, `defaultTableDice`.
+- **Workflows**: Markdown files with YAML frontmatter (`results-folder`, `template-file`) and a `| Table | Rolls | Label |` steps table. Stored under `workflowsFolder`. Templates stored at `{workflowsFolder}/templates/{name}.md`. Parsed/serialized by `workflow.ts`.
+- **Settings** (`data.json`): `worldFolder`, `hexFolder`, `townsFolder`, `dungeonsFolder`, `questsFolder`, `featuresFolder`, `factionsFolder`, `tablesFolder`, `workflowsFolder`, `iconsFolder`, `templatePath`, `hexGap`, `hexOrientation`, `terrainPalette`, `gridSize`, `gridOffset`, `zoomLevel`, `roadChains`, `riverChains`, `roadColor`, `riverColor`, `defaultTableDice`, `regions`.
 
 ### Hex orientations
 
@@ -154,3 +182,6 @@ Renders an interactive hex-grid map for tabletop RPG world-building inside Obsid
 - Paint tool methods (`onHexPaintClick`, `onHexIconClick`) are synchronous — DOM patched immediately, file writes queued via coalescing queue.
 - Link-tool click handlers (`onHexTableLinkClick`, `onHexFactionLinkClick`) are async — no coalescing needed (one-shot writes).
 - `onChanged` callback from `HexEditorModal` defers `renderGrid()` 300 ms when no terrain/icon overrides are passed (link-only changes) to avoid a metadata-cache race after `vault.modify`.
+- Modals that preload file content accept an optional `preloaded` / `initialContent` parameter — callers that already hold the file content pass it in to avoid a redundant vault read.
+- Exclude notes whose `basename` starts with `"_"` whenever enumerating vault files for display, dropdowns, or linking. Pattern: `.filter(f => !f.basename.startsWith("_"))`.
+- Draggable modals (`WorkflowEditorModal`) call `makeDraggable()` in `onOpen` and add the `duckmage-editor-modal-drag` class; dragging is locked to the title bar area.
