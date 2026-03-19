@@ -57,6 +57,21 @@ export default class DuckmagePlugin extends Plugin {
 			}
 		});
 
+		this.registerObsidianProtocolHandler("duckmage-workflow", (params) => {
+			const filePath = params["file"];
+			if (!filePath) return;
+			const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_RANDOM_TABLES);
+			if (leaves.length > 0) {
+				this.app.workspace.revealLeaf(leaves[0]);
+				(leaves[0].view as any).openWorkflow?.(filePath);
+			} else {
+				void this.app.workspace.getLeaf("tab").setViewState({
+					type: VIEW_TYPE_RANDOM_TABLES,
+					state: { filePath, mode: "workflows" },
+				});
+			}
+		});
+
 		// Keep linked-folder frontmatter in sync when a folder is renamed
 		this.registerEvent(
 			this.app.vault.on("rename", async (abstractFile, oldPath) => {

@@ -424,6 +424,18 @@ export class RandomTableView extends ItemView {
     }
   }
 
+  // ── Public: open a specific workflow (called from protocol handler) ──
+  async openWorkflow(filePath: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof TFile) {
+      if (this.viewMode !== "workflows") {
+        this.setViewMode("workflows");
+        await this.loadList();
+      }
+      await this.loadWorkflow(file);
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private isInTablesFolder(filePath: string): boolean {
@@ -807,9 +819,25 @@ export class RandomTableView extends ItemView {
       text: "Roll workflow",
       cls: "duckmage-rt-roll-btn mod-cta",
     });
-    runBtn.style.marginBottom = "12px";
     runBtn.addEventListener("click", () => {
       new WorkflowWizardModal(this.app, this.plugin, file).open();
+    });
+    runBtn.style.marginRight = "8px";
+
+    const copyWfLinkBtn = this.detailEl.createEl("button", {
+      text: "🔗 Copy link",
+      cls: "duckmage-rt-copy-link-btn",
+    });
+    copyWfLinkBtn.title = "Copy a markdown link to open this workflow";
+    copyWfLinkBtn.style.marginBottom = "12px";
+    copyWfLinkBtn.addEventListener("click", () => {
+      const vault = encodeURIComponent(this.app.vault.getName());
+      const path = encodeURIComponent(file.path);
+      const link = `[🔗 ${file.basename}](obsidian://duckmage-workflow?vault=${vault}&file=${path})`;
+      navigator.clipboard.writeText(link).then(() => {
+        copyWfLinkBtn.setText("Copied!");
+        setTimeout(() => copyWfLinkBtn.setText("🔗 Copy link"), 1500);
+      });
     });
 
     // ── Steps list ─────────────────────────────────────────────────────
