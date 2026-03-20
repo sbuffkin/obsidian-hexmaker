@@ -386,9 +386,9 @@ export default class DuckmagePlugin extends Plugin {
 			const tableFile = this.app.vault.getAbstractFileByPath(tablePath);
 			if (!(tableFile instanceof TFile)) continue;
 
-			const linkText = `[[${this.app.metadataCache.fileToLinktext(tableFile, file.path)}]]`;
-			const existing = await getLinksInSection(this.app, file.path, "Encounters Table");
 			const target = this.app.metadataCache.fileToLinktext(tableFile, file.path);
+			const linkText = `[[${target}]]`;
+			const existing = await getLinksInSection(this.app, file.path, "Encounters Table");
 			if (existing.includes(target)) continue;
 
 			await addLinkToSection(this.app, file.path, "Encounters Table", linkText);

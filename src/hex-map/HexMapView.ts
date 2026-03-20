@@ -1298,7 +1298,8 @@ export class HexMapView extends ItemView {
       if (!(hexFile instanceof TFile)) return;
     }
 
-    const linkText = `[[${this.app.metadataCache.fileToLinktext(tableFile, hexPath)}]]`;
+    const target = this.app.metadataCache.fileToLinktext(tableFile, hexPath);
+    const linkText = `[[${target}]]`;
 
     // Idempotent — only add if not already present
     const existing = await getLinksInSection(
@@ -1306,7 +1307,6 @@ export class HexMapView extends ItemView {
       hexPath,
       "Encounters Table",
     );
-    const target = this.app.metadataCache.fileToLinktext(tableFile, hexPath);
     if (existing.includes(target)) {
       new Notice(`Already linked on ${x},${y}`);
       return;
@@ -1345,9 +1345,9 @@ export class HexMapView extends ItemView {
       if (!(hexFile instanceof TFile)) return;
     }
 
-    const linkText = `[[${this.app.metadataCache.fileToLinktext(factionFile, hexPath)}]]`;
-    const existing = await getLinksInSection(this.app, hexPath, "Factions");
     const target = this.app.metadataCache.fileToLinktext(factionFile, hexPath);
+    const linkText = `[[${target}]]`;
+    const existing = await getLinksInSection(this.app, hexPath, "Factions");
     if (existing.includes(target)) {
       new Notice(`Already linked on ${x},${y}`);
       return;

@@ -193,6 +193,7 @@ export class HexEditorModal extends DuckmageModal {
 
   private renderNeighborWidget(container: HTMLElement, x: number, y: number): void {
     const isFlat = this.plugin.settings.hexOrientation === "flat";
+    const paletteMap = new Map(this.plugin.settings.terrainPalette.map(p => [p.name, p]));
     const widget = container.createDiv({ cls: "duckmage-neighbor-widget" });
 
     type NeighborDef = { l: number; t: number; nx: number; ny: number };
@@ -226,9 +227,7 @@ export class HexEditorModal extends DuckmageModal {
         tile.title = `Hex ${nx}, ${ny}`;
         const nPath = this.plugin.hexPath(nx, ny, this.regionName);
         const terrain = getTerrainFromFile(this.app, nPath);
-        const entry = terrain
-          ? this.plugin.settings.terrainPalette.find(p => p.name === terrain)
-          : undefined;
+        const entry = terrain ? paletteMap.get(terrain) : undefined;
         if (entry) tile.style.backgroundColor = entry.color;
         tile.addEventListener("click", () => {
           this.x = nx;

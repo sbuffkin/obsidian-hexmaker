@@ -549,8 +549,8 @@ export class RandomTableView extends ItemView {
     const folder = normalizeFolder(this.plugin.settings.tablesFolder);
     const prefix = folder ? folder + "/" : "";
 
-    let files = this.app.vault
-      .getMarkdownFiles()
+    const allFiles = this.app.vault.getMarkdownFiles();
+    let files = allFiles
       .filter(
         (f) =>
           (!prefix || f.path.startsWith(prefix)) && !f.basename.startsWith("_"),
@@ -576,7 +576,7 @@ export class RandomTableView extends ItemView {
     }
 
     // Rebuild workflow map (table path → [workflow paths])
-    this.rebuildWorkflowMap();
+    this.rebuildWorkflowMap(allFiles);
 
     if (files.length === 0) {
       this.listEl.createSpan({
@@ -605,11 +605,11 @@ export class RandomTableView extends ItemView {
     this.renderTreeNodes(this.listEl, tree, this.filterQuery !== "");
   }
 
-  private rebuildWorkflowMap(): void {
+  private rebuildWorkflowMap(allFiles?: TFile[]): void {
     this.workflowMap.clear();
     const wfFolder = normalizeFolder(this.plugin.settings.workflowsFolder);
     if (!wfFolder) return;
-    const wfFiles = this.app.vault.getMarkdownFiles()
+    const wfFiles = (allFiles ?? this.app.vault.getMarkdownFiles())
       .filter(f => f.path.startsWith(wfFolder + "/") && !f.basename.startsWith("_"));
     for (const wf of wfFiles) {
       const links = this.app.metadataCache.getFileCache(wf)?.links ?? [];

@@ -414,17 +414,18 @@ export class HexTableView extends ItemView {
       return;
     }
 
-    // Update X/Y input placeholders with actual data bounds
-    const xs = files.map((f) => f.x);
-    const ys = files.map((f) => f.y);
-    if (this.filterXMinInput)
-      this.filterXMinInput.placeholder = String(Math.min(...xs));
-    if (this.filterXMaxInput)
-      this.filterXMaxInput.placeholder = String(Math.max(...xs));
-    if (this.filterYMinInput)
-      this.filterYMinInput.placeholder = String(Math.min(...ys));
-    if (this.filterYMaxInput)
-      this.filterYMaxInput.placeholder = String(Math.max(...ys));
+    // Update X/Y input placeholders with actual data bounds (single pass)
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (const f of files) {
+      if (f.x < xMin) xMin = f.x;
+      if (f.x > xMax) xMax = f.x;
+      if (f.y < yMin) yMin = f.y;
+      if (f.y > yMax) yMax = f.y;
+    }
+    if (this.filterXMinInput) this.filterXMinInput.placeholder = String(xMin);
+    if (this.filterXMaxInput) this.filterXMaxInput.placeholder = String(xMax);
+    if (this.filterYMinInput) this.filterYMinInput.placeholder = String(yMin);
+    if (this.filterYMaxInput) this.filterYMaxInput.placeholder = String(yMax);
 
     // ── Phase 1: skeleton render (sync — coords + terrain from metadata cache) ──
     const table = document.createElement("table");
@@ -593,10 +594,9 @@ export class HexTableView extends ItemView {
     tr.empty();
 
     const palette = this.plugin.settings.terrainPalette ?? [];
+    const paletteMap = new Map(palette.map((p) => [p.name, p]));
     const terrainName = getTerrainFromFile(this.app, path);
-    const terrainEntry = terrainName
-      ? palette.find((p) => p.name === terrainName)
-      : undefined;
+    const terrainEntry = terrainName ? paletteMap.get(terrainName) : undefined;
 
     const hasTown = (links.get("towns") ?? []).length > 0;
     const hasDungeon = (links.get("dungeons") ?? []).length > 0;
@@ -655,9 +655,7 @@ export class HexTableView extends ItemView {
     const renderTerrainCell = () => {
       terrainTd.empty();
       const current = getTerrainFromFile(this.app, path);
-      const entry = current
-        ? palette.find((p) => p.name === current)
-        : undefined;
+      const entry = current ? paletteMap.get(current) : undefined;
       if (entry) {
         const swatch = terrainTd.createSpan({
           cls: "duckmage-hex-table-swatch",
