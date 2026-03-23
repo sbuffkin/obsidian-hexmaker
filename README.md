@@ -13,6 +13,26 @@ An Obsidian plugin for tabletop RPG hex-map world-building. Each hex on the map 
 
 ---
 
+## Getting started
+
+After enabling the plugin, do this once before you start mapping:
+
+### 1. Set your world folder
+Open **Settings → Hexmaker** and enter a root folder name in **World folder** (e.g. `RPG/world`). This is the base for all other folders.
+
+### 2. Generate folders
+Click **Generate folders**. This fills in the hex, towns, dungeons, tables, and other folder settings with sensible defaults under your world folder and creates them in your vault. Any field you've already filled in is left untouched.
+
+### 3. Open the Hex Map
+Click the map icon in the left ribbon (or use the command palette: **Open Hexmaker hex map**). You'll be prompted to create your first region — give it a name, choose its size, and pick a terrain palette.
+
+### 4. Generate terrain tables
+Once your folders are set, go back to **Settings → Hexmaker** and click **Generate terrain tables & hex links**. This creates a description and encounters table file for every terrain type and links them into any existing hex notes. It's safe to run again at any time.
+
+You're ready to start mapping.
+
+---
+
 ## Features
 
 ### Hex Map view
