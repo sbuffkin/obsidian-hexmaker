@@ -18,9 +18,11 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 	constructor(
 		app: App,
 		private plugin: DuckmagePlugin,
+		private palette: TerrainColor[],
 		private entry: TerrainColor,
 		private onSave: () => void,
 		private onDelete: () => void,
+		private isNew = false,
 	) {
 		super(app);
 		this.originalName     = entry.name;
@@ -67,28 +69,36 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 
 		// Track last picked colour so toggling on restores it rather than resetting to white
 		let lastIconColorPick = this.pendingIconColor ?? "#ffffff";
+		let tintToggle: import("obsidian").ToggleComponent | undefined;
 		new Setting(contentEl)
 			.setName("Icon tint")
 			.setDesc("Apply a solid colour to the icon shape (works best with monochrome icons).")
-			.addToggle(toggle =>
+			.addToggle(toggle => {
+				tintToggle = toggle;
 				toggle
 					.setValue(!!this.pendingIconColor)
 					.onChange(enabled => {
 						this.pendingIconColor = enabled ? lastIconColorPick : undefined;
-					}),
-			)
+					});
+			})
 			.addColorPicker(picker =>
 				picker
 					.setValue(lastIconColorPick)
 					.onChange(value => {
 						lastIconColorPick = value;
-						if (this.pendingIconColor !== undefined) this.pendingIconColor = value;
+						// Auto-enable tint when the user picks a colour
+						if (this.pendingIconColor === undefined) {
+							this.pendingIconColor = value;
+							tintToggle?.setValue(true);
+						} else {
+							this.pendingIconColor = value;
+						}
 					}),
 			);
 
 		// Collect existing categories from the palette for the datalist
 		const existingCategories = [...new Set(
-			this.plugin.settings.terrainPalette
+			this.palette
 				.map(e => e.category)
 				.filter((c): c is string => !!c),
 		)].sort();
@@ -132,8 +142,8 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 		const deleteBtn = btnRow.createEl("button", { cls: "duckmage-btn-danger", text: "Delete" });
 		deleteBtn.addEventListener("click", async () => {
 			this.savedOrDeleted = true;
-			const idx = this.plugin.settings.terrainPalette.indexOf(this.entry);
-			if (idx >= 0) this.plugin.settings.terrainPalette.splice(idx, 1);
+			const idx = this.palette.indexOf(this.entry);
+			if (idx >= 0) this.palette.splice(idx, 1);
 			await this.plugin.saveSettings();
 			this.onDelete();
 			this.close();
@@ -155,7 +165,14 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 		this.entry.icon      = this.pendingIcon;
 		this.entry.iconColor = this.pendingIconColor;
 		this.entry.category  = this.pendingCategory;
-		if (nameChanged) {
+		if (this.isNew) {
+			// Brand-new entry — no hex can have this terrain yet and no table files exist
+			// to rename. Just commit the name and create fresh table files.
+			this.entry.name = this.pendingName;
+			await this.plugin.saveSettings();
+			await this.plugin.ensureTerrainTables();
+			this.plugin.refreshHexMap();
+		} else if (nameChanged) {
 			const oldName = this.originalName;
 			const newName = this.pendingName;
 			const overrides = await this.plugin.renameTerrainInHexes(oldName, newName);

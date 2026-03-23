@@ -131,7 +131,7 @@ export class HexEditorModal extends DuckmageModal {
       s.hexEditorTerrainCollapsed ?? false,
     );
     const paletteEntry = directTerrain
-      ? (this.plugin.settings.terrainPalette ?? []).find(p => p.name === directTerrain)
+      ? this.plugin.getRegionPalette(this.regionName).find(p => p.name === directTerrain)
       : undefined;
     const iconToShow = directIcon ?? paletteEntry?.icon;
     if (paletteEntry || iconToShow) {
@@ -193,7 +193,7 @@ export class HexEditorModal extends DuckmageModal {
 
   private renderNeighborWidget(container: HTMLElement, x: number, y: number): void {
     const isFlat = this.plugin.settings.hexOrientation === "flat";
-    const paletteMap = new Map(this.plugin.settings.terrainPalette.map(p => [p.name, p]));
+    const paletteMap = new Map(this.plugin.getRegionPalette(this.regionName).map(p => [p.name, p]));
     const widget = container.createDiv({ cls: "duckmage-neighbor-widget" });
 
     type NeighborDef = { l: number; t: number; nx: number; ny: number };
@@ -274,7 +274,7 @@ export class HexEditorModal extends DuckmageModal {
     currentTerrain: string | null,
     currentIcon: string | null,
   ): void {
-    const palette = this.plugin.settings.terrainPalette;
+    const palette = this.plugin.getRegionPalette(this.regionName);
 
     const section = container.createDiv({ cls: "duckmage-editor-section" });
 

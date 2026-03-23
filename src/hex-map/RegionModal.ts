@@ -29,8 +29,9 @@ export class RegionModal extends DuckmageModal {
 		for (const region of this.plugin.settings.regions) {
 			const li = list.createEl("li", {
 				cls: "duckmage-region-item" + (region.name === this.view.activeRegionName ? " is-active" : ""),
-				text: region.name,
 			});
+			li.createSpan({ text: region.name });
+			li.createSpan({ cls: "duckmage-region-palette-badge", text: region.paletteName });
 			li.addEventListener("click", () => {
 				this.view.activeRegionName = region.name;
 				this.onChanged();
@@ -56,11 +57,20 @@ export class RegionModal extends DuckmageModal {
 		colsInput.style.width = "55px";
 		const rowsInput = createRow.createEl("input", { type: "number", value: "16" }) as HTMLInputElement;
 		rowsInput.style.width = "55px";
+
+		const paletteSelect = createRow.createEl("select") as HTMLSelectElement;
+		for (const pal of this.plugin.settings.terrainPalettes) {
+			paletteSelect.createEl("option", { value: pal.name, text: pal.name });
+		}
+
 		const createBtn = createRow.createEl("button", { text: "Create", cls: "mod-cta" });
 		createBtn.addEventListener("click", () => void this.createRegion(
 			nameInput.value.trim(),
 			Number(colsInput.value) || 20,
 			Number(rowsInput.value) || 16,
+			paletteSelect.value,
+			createBtn,
+			nameInput, colsInput, rowsInput, paletteSelect,
 		));
 	}
 
@@ -102,29 +112,47 @@ export class RegionModal extends DuckmageModal {
 		this.render();
 	}
 
-	private async createRegion(raw: string, cols: number, rows: number): Promise<void> {
+	private async createRegion(
+		raw: string,
+		cols: number,
+		rows: number,
+		paletteName: string,
+		btn: HTMLButtonElement,
+		...inputs: (HTMLInputElement | HTMLSelectElement)[]
+	): Promise<void> {
 		const name = this.slugify(raw);
 		if (!name) { new Notice("Enter a region name."); return; }
 		if (this.plugin.settings.regions.some(r => r.name === name)) {
 			new Notice(`Region "${name}" already exists.`); return;
 		}
+
+		btn.setText(`Generating 0 / ${cols * rows}…`);
+		btn.disabled = true;
+		for (const input of inputs) input.disabled = true;
+
 		const hexFolder = normalizeFolder(this.plugin.settings.hexFolder);
 		const folderPath = hexFolder ? `${hexFolder}/${name}` : name;
 		if (!this.app.vault.getAbstractFileByPath(folderPath)) {
 			try { await this.app.vault.createFolder(folderPath); } catch { /* exists */ }
 		}
 		this.plugin.settings.regions.push({
-			name, gridSize: { cols, rows }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [],
+			name, paletteName, gridSize: { cols, rows }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [],
 		});
 		this.view.activeRegionName = name;
 		await this.plugin.saveSettings();
 		this.onChanged();
-		this.close();
-		// Auto-generate all hex notes for the new region in the background
+
 		const xs = Array.from({ length: cols }, (_, i) => i);
 		const ys = Array.from({ length: rows }, (_, i) => i);
-		const created = await this.plugin.generateHexNotes(name, xs, ys);
+		const total = cols * rows;
+		let created = 0;
+		const created_ = await this.plugin.generateHexNotes(name, xs, ys, (done) => {
+			created = done;
+			btn.setText(`Generating ${done} / ${total}…`);
+		});
+		created = created_;
 		if (created > 0) new Notice(`Duckmage: generated ${created} hex note${created !== 1 ? "s" : ""} for "${name}".`);
+		this.close();
 	}
 
 	onClose(): void { this.contentEl.empty(); }

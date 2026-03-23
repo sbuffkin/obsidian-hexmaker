@@ -1,9 +1,15 @@
 export interface RegionData {
 	name: string;
+	paletteName: string;
 	gridSize: { cols: number; rows: number };
 	gridOffset: { x: number; y: number };
 	roadChains: string[][];
 	riverChains: string[][];
+}
+
+export interface TerrainPalette {
+	name: string;
+	terrains: TerrainColor[];
 }
 
 export interface TerrainColor {
@@ -25,7 +31,7 @@ export interface DuckmagePluginSettings {
 	iconsFolder: string;
 	templatePath: string;
 	hexGap: string;
-	terrainPalette: TerrainColor[];
+	terrainPalettes: TerrainPalette[];
 	regions: RegionData[];
 	zoomLevel: number;
 	roadColor: string;

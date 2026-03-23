@@ -1,5 +1,7 @@
 import type { TerrainColor, DuckmagePluginSettings } from "./types";
 
+export const DEFAULT_PALETTE_NAME = "Default";
+
 export const VIEW_TYPE_HEX_MAP = "duckmage-hex-map";
 export const VIEW_TYPE_HEX_TABLE = "duckmage-hex-table";
 export const VIEW_TYPE_RANDOM_TABLES = "duckmage-random-tables";
@@ -77,9 +79,9 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   iconsFolder: "",
   templatePath: "",
   hexGap: "0.15",
-  terrainPalette: DEFAULT_TERRAIN_PALETTE,
+  terrainPalettes: [{ name: DEFAULT_PALETTE_NAME, terrains: DEFAULT_TERRAIN_PALETTE }],
   regions: [
-    { name: "default", gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] },
+    { name: "default", paletteName: DEFAULT_PALETTE_NAME, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] },
   ],
   zoomLevel: 1,
   roadColor: "#a16207",

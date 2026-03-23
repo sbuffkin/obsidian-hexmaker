@@ -1,14 +1,13 @@
 {
   "id": "hexmaker-plugin",
   "name": "Hexmap World Creator",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minAppVersion": "1.0.0",
   "description": "Hex crawl worldbuilding toolbox. Aims to allow you to create a guidebook level wiki for your setting with minimal fuss. System agnostic, ready for any TRPG (tabletop role playing game) you care to run in it.",
   "author": "Mark B",
-  "authorUrl": "",
+  "authorUrl": "https://github.com/sbuffkin",
   "fundingUrl": {
-    "Buy Me a Coffee": "https://buymeacoffee.com",
-    "Patreon": "https://www.patreon.com/"
+    "Buy Me a Coffee": "https://buymeacoffee.com/morkdev"
   },
   "isDesktopOnly": true
 }

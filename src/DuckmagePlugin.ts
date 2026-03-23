@@ -3,10 +3,10 @@ import { HexMapView } from "./hex-map/HexMapView";
 import { HexTableView } from "./hex-table/HexTableView";
 import { RandomTableView } from "./random-tables/RandomTableView";
 import { DuckmageSettingTab } from "./DuckmageSettingTab";
-import { DEFAULT_SETTINGS, DEFAULT_TERRAIN_PALETTE, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
+import { DEFAULT_PALETTE_NAME, DEFAULT_SETTINGS, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
 import { parseWorkflow, buildWorkflowContent } from "./random-tables/workflow";
-import type { DuckmagePluginSettings, RegionData } from "./types";
+import type { DuckmagePluginSettings, RegionData, TerrainColor, TerrainPalette } from "./types";
 import DEFAULT_HEX_TEMPLATE from "./defaultHexTemplate.md";
 import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
 import { addLinkToSection, getLinksInSection, removeLinkFromSection } from "./sections";
@@ -135,13 +135,20 @@ export default class DuckmagePlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		const data = await this.loadData();
+		const data = (await this.loadData()) ?? {};
+		// Migrate old single terrainPalette → terrainPalettes
+		const anyData = data as Record<string, unknown>;
+		if (anyData.terrainPalette && !anyData.terrainPalettes) {
+			anyData.terrainPalettes = [{ name: DEFAULT_PALETTE_NAME, terrains: anyData.terrainPalette }];
+			delete anyData.terrainPalette;
+		}
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
 		// Deep-clone the regions array so mutations to settings.regions never alias DEFAULT_SETTINGS.regions.
 		// Object.assign does a shallow copy, so on first run (data===null) settings.regions IS
 		// DEFAULT_SETTINGS.regions – pushing/mutating it would corrupt the constant for the session.
 		this.settings.regions = (Array.isArray(this.settings.regions) ? this.settings.regions : []).map(r => ({
 			name: r.name,
+			paletteName: r.paletteName ?? DEFAULT_PALETTE_NAME,
 			gridSize:   r.gridSize   ? { cols: r.gridSize.cols,   rows: r.gridSize.rows }   : { cols: 20, rows: 16 },
 			gridOffset: r.gridOffset ? { x: r.gridOffset.x,       y: r.gridOffset.y }       : { x: 0,    y: 0 },
 			roadChains:  Array.isArray(r.roadChains)  ? r.roadChains.map((c: string[])  => [...c]) : [],
@@ -152,6 +159,7 @@ export default class DuckmagePlugin extends Plugin {
 		if (!Array.isArray(this.settings.regions) || this.settings.regions.length === 0) {
 			this.settings.regions = [{
 				name: "default",
+				paletteName: DEFAULT_PALETTE_NAME,
 				gridSize:   (legacyData.gridSize   as { cols: number; rows: number }) ?? { cols: 20, rows: 16 },
 				gridOffset: (legacyData.gridOffset as { x: number; y: number })       ?? { x: 0, y: 0 },
 				roadChains:  Array.isArray(legacyData.roadChains)  ? legacyData.roadChains  as string[][] : [],
@@ -159,9 +167,17 @@ export default class DuckmagePlugin extends Plugin {
 			}];
 		}
 		for (const r of this.settings.regions) {
+			if (!r.paletteName) r.paletteName = DEFAULT_PALETTE_NAME;
 			if (!r.gridOffset) r.gridOffset = { x: 0, y: 0 };
 			if (!Array.isArray(r.roadChains))  r.roadChains  = [];
 			if (!Array.isArray(r.riverChains)) r.riverChains = [];
+		}
+		// Ensure terrainPalettes is valid
+		if (!Array.isArray(this.settings.terrainPalettes) || this.settings.terrainPalettes.length === 0) {
+			this.settings.terrainPalettes = DEFAULT_SETTINGS.terrainPalettes.map(p => ({
+				name: p.name,
+				terrains: p.terrains.map(t => ({ ...t })),
+			}));
 		}
 		if (!this.settings.roadColor)  this.settings.roadColor  = "#a16207";
 		if (!this.settings.riverColor) this.settings.riverColor = "#3b82f6";
@@ -178,17 +194,6 @@ export default class DuckmagePlugin extends Plugin {
 		if (!Array.isArray(this.settings.encounterTableExcludedFolders)) this.settings.encounterTableExcludedFolders = ["terrain"];
 		if (!this.settings.defaultRegion) {
 			this.settings.defaultRegion = this.settings.regions[0]?.name ?? "default";
-		}
-		if (!Array.isArray(this.settings.terrainPalette) || this.settings.terrainPalette.length === 0) {
-			this.settings.terrainPalette = [...DEFAULT_TERRAIN_PALETTE];
-		} else {
-			// Merge in any new default entries not already present by name
-			const existing = new Set(this.settings.terrainPalette.map(e => e.name));
-			for (const entry of DEFAULT_TERRAIN_PALETTE) {
-				if (!existing.has(entry.name)) {
-					this.settings.terrainPalette.push({ ...entry });
-				}
-			}
 		}
 	}
 
@@ -337,7 +342,7 @@ export default class DuckmagePlugin extends Plugin {
 		}
 
 		// Migrate any old flat-format files ({name} - {type}.md) to the new subfolder scheme
-		for (const entry of this.settings.terrainPalette) {
+		for (const entry of this.getAllTerrains()) {
 			for (const tableType of ["description", "encounters"] as const) {
 				const oldPath = `${subfolder}/${entry.name} - ${tableType}.md`;
 				const newPath = `${subfolder}/${tableType}/${entry.name}.md`;
@@ -349,7 +354,7 @@ export default class DuckmagePlugin extends Plugin {
 		}
 
 		// Create any still-missing table files
-		for (const entry of this.settings.terrainPalette) {
+		for (const entry of this.getAllTerrains()) {
 			for (const tableType of ["description", "encounters"] as const) {
 				const path = `${subfolder}/${tableType}/${entry.name}.md`;
 				if (!this.app.vault.getAbstractFileByPath(path)) {
@@ -484,25 +489,29 @@ export default class DuckmagePlugin extends Plugin {
 	}
 
 	/** Create a hex note from the configured template (or the built-in default). */
-	async createHexNote(x: number, y: number, regionName: string): Promise<TFile | null> {
+	async createHexNote(x: number, y: number, regionName: string, preloadedTemplate?: string): Promise<TFile | null> {
 		const path = this.hexPath(x, y, regionName);
-		const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
 		let content: string;
 
-		if (templatePath) {
-			const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
-			if (!(templateFile instanceof TFile)) {
-				new Notice("Template not found: " + templatePath);
-				return null;
-			}
-			try {
-				content = await this.app.vault.read(templateFile);
-			} catch {
-				new Notice("Template not found: " + templatePath);
-				return null;
-			}
+		if (preloadedTemplate !== undefined) {
+			content = preloadedTemplate;
 		} else {
-			content = DEFAULT_HEX_TEMPLATE;
+			const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
+			if (templatePath) {
+				const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
+				if (!(templateFile instanceof TFile)) {
+					new Notice("Template not found: " + templatePath);
+					return null;
+				}
+				try {
+					content = await this.app.vault.read(templateFile);
+				} catch {
+					new Notice("Template not found: " + templatePath);
+					return null;
+				}
+			} else {
+				content = DEFAULT_HEX_TEMPLATE;
+			}
 		}
 
 		content = content
@@ -529,23 +538,54 @@ export default class DuckmagePlugin extends Plugin {
 		}
 	}
 
+	/** Read the hex template once (used by bulk generation to avoid N redundant reads). */
+	private async loadHexTemplate(): Promise<string | null> {
+		const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
+		if (templatePath) {
+			const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
+			if (!(templateFile instanceof TFile)) {
+				new Notice("Template not found: " + templatePath);
+				return null;
+			}
+			try {
+				return await this.app.vault.read(templateFile);
+			} catch {
+				new Notice("Template not found: " + templatePath);
+				return null;
+			}
+		}
+		return DEFAULT_HEX_TEMPLATE;
+	}
+
 	/**
 	 * Create hex notes for every (x, y) in the cartesian product of xs × ys,
 	 * skipping any that already exist on disk.  Returns the number of notes created.
 	 */
-	async generateHexNotes(regionName: string, xs: number[], ys: number[]): Promise<number> {
+	async generateHexNotes(
+		regionName: string,
+		xs: number[],
+		ys: number[],
+		onProgress?: (done: number) => void,
+	): Promise<number> {
+		// Read template once — avoids N vault reads for the same file
+		const template = await this.loadHexTemplate();
+		if (template === null) return 0;
+
 		let created = 0;
-		const CHUNK = 5;
+		let done = 0;
+		const CHUNK = 20;
 		const pairs: [number, number][] = [];
 		for (const x of xs) for (const y of ys) pairs.push([x, y]);
 		for (let i = 0; i < pairs.length; i += CHUNK) {
 			await Promise.all(pairs.slice(i, i + CHUNK).map(async ([x, y]) => {
 				const path = this.hexPath(x, y, regionName);
 				if (!(await this.app.vault.adapter.exists(path))) {
-					const result = await this.createHexNote(x, y, regionName);
+					const result = await this.createHexNote(x, y, regionName, template);
 					if (result) created++;
 				}
+				done++;
 			}));
+			onProgress?.(done);
 		}
 		return created;
 	}
@@ -554,10 +594,32 @@ export default class DuckmagePlugin extends Plugin {
 		return this.settings.regions.find(r => r.name === name);
 	}
 
+	getPaletteByName(name: string): TerrainPalette | undefined {
+		return this.settings.terrainPalettes.find(p => p.name === name);
+	}
+
+	getRegionPalette(regionName: string): TerrainColor[] {
+		const region = this.getRegion(regionName);
+		return this.getPaletteByName(region?.paletteName ?? "")?.terrains
+			?? this.settings.terrainPalettes[0]?.terrains
+			?? [];
+	}
+
+	getAllTerrains(): TerrainColor[] {
+		const seen = new Set<string>();
+		const result: TerrainColor[] = [];
+		for (const pal of this.settings.terrainPalettes) {
+			for (const t of pal.terrains) {
+				if (!seen.has(t.name)) { seen.add(t.name); result.push(t); }
+			}
+		}
+		return result;
+	}
+
 	getOrCreateRegion(name: string): RegionData {
 		let r = this.getRegion(name);
 		if (!r) {
-			r = { name, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] };
+			r = { name, paletteName: DEFAULT_PALETTE_NAME, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] };
 			this.settings.regions.push(r);
 		}
 		return r;

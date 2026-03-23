@@ -92,7 +92,9 @@ export class HexTableView extends ItemView {
     return VIEW_TYPE_HEX_TABLE;
   }
   getDisplayText(): string {
-    return "Hex table";
+    return this.regionFilter && this.regionFilter !== "all"
+      ? `Hex table — ${this.regionFilter}`
+      : "Hex table";
   }
 
   async onOpen(): Promise<void> {
@@ -168,7 +170,9 @@ export class HexTableView extends ItemView {
       cls: "duckmage-filter-btn",
     });
     this.terrainFilterBtn.addEventListener("click", () => {
-      const palette = this.plugin.settings.terrainPalette ?? [];
+      const palette = this.regionFilter !== "all"
+        ? this.plugin.getRegionPalette(this.regionFilter)
+        : this.plugin.getAllTerrains();
       new TerrainFilterModal(
         this.app,
         palette,
@@ -266,6 +270,7 @@ export class HexTableView extends ItemView {
     regionSelect.value = this.regionFilter;
     regionSelect.addEventListener("change", () => {
       this.regionFilter = regionSelect.value;
+      (this.leaf as any).updateHeader();
       void this.loadTable();
     });
 
@@ -593,7 +598,7 @@ export class HexTableView extends ItemView {
   ): void {
     tr.empty();
 
-    const palette = this.plugin.settings.terrainPalette ?? [];
+    const palette = this.plugin.getRegionPalette(region);
     const paletteMap = new Map(palette.map((p) => [p.name, p]));
     const terrainName = getTerrainFromFile(this.app, path);
     const terrainEntry = terrainName ? paletteMap.get(terrainName) : undefined;
@@ -669,7 +674,7 @@ export class HexTableView extends ItemView {
     renderTerrainCell();
     terrainTd.addEventListener("click", () => {
       const current = getTerrainFromFile(this.app, path);
-      new HexTerrainPickerModal(this.app, this.plugin, path, current, () => {
+      new HexTerrainPickerModal(this.app, this.plugin, this.plugin.getRegionPalette(region), path, current, () => {
         renderTerrainCell();
       }).open();
     });

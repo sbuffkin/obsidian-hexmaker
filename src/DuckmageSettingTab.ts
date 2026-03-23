@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting, TFile } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type DuckmagePlugin from "./DuckmagePlugin";
 import { normalizeFolder } from "./utils";
 
@@ -336,137 +336,68 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		containerEl.createEl("h3", { text: "Terrain palette" });
+		containerEl.createEl("h3", { text: "Terrain palettes" });
 		containerEl.createEl("p", {
-			text: "Right-click a hex to set terrain. Each type can have a fill color and an icon from the plugin's icons folder or your custom icons folder.",
+			text: "Each region uses one palette. Assign a palette when creating a region — it cannot be changed after. Edit palette contents from the terrain tool on the hex map.",
 			cls: "setting-item-description",
 		});
 
-		const listEl = containerEl.createDiv({ cls: "duckmage-palette-list" });
-		const palette = this.plugin.settings.terrainPalette ?? [];
+		const palettes = this.plugin.settings.terrainPalettes;
 
-		let dragSrcIndex = -1;
+		const renderPaletteList = () => {
+			const existingList = containerEl.querySelector(".duckmage-palette-mgmt-list");
+			if (existingList) existingList.remove();
 
-		for (let i = 0; i < palette.length; i++) {
-			const entry = palette[i];
-			const itemEl = listEl.createDiv({ cls: "duckmage-palette-item" });
-			itemEl.draggable = true;
+			const listEl = containerEl.createDiv({ cls: "duckmage-palette-mgmt-list" });
 
-			// Drag handle
-			itemEl.createSpan({ cls: "duckmage-palette-drag-handle", text: "⠿" });
+			for (let i = 0; i < palettes.length; i++) {
+				const pal = palettes[i];
+				const usedBy = this.plugin.settings.regions.filter(r => r.paletteName === pal.name).length;
+				const rowEl = listEl.createDiv({ cls: "duckmage-palette-mgmt-row" });
 
-			itemEl.addEventListener("dragstart", (e: DragEvent) => {
-				dragSrcIndex = i;
-				itemEl.addClass("duckmage-palette-dragging");
-				e.dataTransfer?.setDragImage(itemEl, 0, 0);
-			});
-			itemEl.addEventListener("dragend", () => {
-				itemEl.removeClass("duckmage-palette-dragging");
-				listEl.querySelectorAll(".duckmage-palette-drop-target").forEach(el =>
-					el.classList.remove("duckmage-palette-drop-target"),
-				);
-			});
-			itemEl.addEventListener("dragover", (e: DragEvent) => {
-				e.preventDefault();
-				listEl.querySelectorAll(".duckmage-palette-drop-target").forEach(el =>
-					el.classList.remove("duckmage-palette-drop-target"),
-				);
-				itemEl.addClass("duckmage-palette-drop-target");
-			});
-			itemEl.addEventListener("drop", async (e: DragEvent) => {
-				e.preventDefault();
-				const dropIndex = i;
-				if (dragSrcIndex === -1 || dragSrcIndex === dropIndex) return;
-				const pal = this.plugin.settings.terrainPalette;
-				const [moved] = pal.splice(dragSrcIndex, 1);
-				pal.splice(dropIndex, 0, moved);
-				dragSrcIndex = -1;
-				await this.plugin.saveSettings();
-				this.display();
-			});
-
-			new Setting(itemEl)
-				.addText(text => {
-					let nameBeforeEdit = entry.name;
-					text
-						.setPlaceholder("Name")
-						.setValue(entry.name)
-						.onChange(async value => {
-							const trimmed = (value ?? "").trim();
-							const isDuplicate = trimmed.length > 0 && this.plugin.settings.terrainPalette.some(
-								(e) => e !== entry && e.name.toLowerCase() === trimmed.toLowerCase(),
-							);
-							if (isDuplicate) {
-								text.inputEl.addClass("duckmage-input-error");
-								text.inputEl.title = `"${trimmed}" is already used by another terrain.`;
-								return;
-							}
-							text.inputEl.removeClass("duckmage-input-error");
-							text.inputEl.title = "";
-							entry.name = trimmed || entry.name;
-							await this.plugin.saveSettings();
-						});
-					text.inputEl.addEventListener("focus", () => { nameBeforeEdit = entry.name; });
-					text.inputEl.addEventListener("blur", async () => {
-						if (text.inputEl.hasClass("duckmage-input-error")) return;
-						if (entry.name !== nameBeforeEdit) {
-							await this.renameTerrainTables(nameBeforeEdit, entry.name);
-						}
-					});
-				})
-				.addColorPicker(color =>
-					color.setValue(entry.color).onChange(async value => {
-						entry.color = value;
-						await this.plugin.saveSettings();
-						this.plugin.refreshHexMap();
-					}),
-				)
-				.addDropdown(dropdown => {
-					dropdown.addOption("", "— no icon —");
-					for (const icon of this.plugin.availableIcons) {
-						const label = icon.replace(/^bw-/, "").replace(/\.png$/, "").replace(/-/g, " ");
-						dropdown.addOption(icon, label);
+				const nameInput = rowEl.createEl("input", { type: "text", value: pal.name }) as HTMLInputElement;
+				nameInput.addClass("duckmage-palette-mgmt-name");
+				nameInput.addEventListener("blur", async () => {
+					const trimmed = nameInput.value.trim();
+					if (!trimmed || trimmed === pal.name) { nameInput.value = pal.name; return; }
+					const isDupe = palettes.some((p, j) => j !== i && p.name.toLowerCase() === trimmed.toLowerCase());
+					if (isDupe) {
+						new Notice(`Palette "${trimmed}" already exists.`);
+						nameInput.value = pal.name;
+						return;
 					}
-					dropdown.setValue(entry.icon ?? "");
-					dropdown.onChange(async value => {
-						entry.icon = value || undefined;
-						await this.plugin.saveSettings();
-						this.plugin.refreshHexMap();
-					});
-				})
-				.addExtraButton(btn =>
-					btn.setIcon("trash-2").onClick(async () => {
-						this.plugin.settings.terrainPalette.splice(i, 1);
-						await this.plugin.saveSettings();
-						this.display();
-					}),
-				);
-		}
+					// Update any regions using this palette
+					for (const r of this.plugin.settings.regions) {
+						if (r.paletteName === pal.name) r.paletteName = trimmed;
+					}
+					pal.name = trimmed;
+					await this.plugin.saveSettings();
+				});
 
-		new Setting(containerEl).addButton(btn =>
-			btn.setButtonText("Add terrain type").onClick(async () => {
-				this.plugin.settings.terrainPalette.push({ name: "New", color: "#888888" });
-				await this.plugin.saveSettings();
-				await this.plugin.ensureTerrainTables();
-				this.display();
-			}),
-		);
-	}
+				rowEl.createSpan({ cls: "duckmage-palette-mgmt-badge", text: `(${usedBy} region${usedBy !== 1 ? "s" : ""})` });
 
-	private getTerrainTablePath(terrainName: string, tableType: "description" | "encounters"): string {
-		const folder = normalizeFolder(this.plugin.settings.tablesFolder);
-		const subfolder = folder ? `${folder}/terrain` : "terrain";
-		return `${subfolder}/${tableType}/${terrainName}.md`;
-	}
-
-	private async renameTerrainTables(oldName: string, newName: string): Promise<void> {
-		for (const tableType of ["description", "encounters"] as const) {
-			const oldPath = this.getTerrainTablePath(oldName, tableType);
-			const newPath = this.getTerrainTablePath(newName, tableType);
-			const file = this.app.vault.getAbstractFileByPath(oldPath);
-			if (file instanceof TFile) {
-				try { await this.app.vault.rename(file, newPath); } catch { /* ignore */ }
+				const deleteBtn = rowEl.createEl("button", { text: "Delete" });
+				deleteBtn.disabled = usedBy > 0 || palettes.length <= 1;
+				deleteBtn.title = usedBy > 0 ? "Cannot delete — in use by a region" : palettes.length <= 1 ? "Cannot delete the last palette" : "";
+				deleteBtn.addEventListener("click", async () => {
+					palettes.splice(i, 1);
+					await this.plugin.saveSettings();
+					renderPaletteList();
+				});
 			}
-		}
+
+			new Setting(listEl).addButton(btn =>
+				btn.setButtonText("Add palette").onClick(async () => {
+					palettes.push({
+						name: "New Palette",
+						terrains: this.plugin.settings.terrainPalettes[0]?.terrains.map(t => ({ ...t })) ?? [],
+					});
+					await this.plugin.saveSettings();
+					renderPaletteList();
+				}),
+			);
+		};
+
+		renderPaletteList();
 	}
 }

@@ -188,6 +188,10 @@ export class HexMapView extends ItemView {
         }
         return; // skip pan setup
       }
+      // Any other active tool (road, river, tableLink, factionLink, swap):
+      // let the click event handle it — don't set up drag/pan so hasDragged
+      // never swallows the click.
+      if (this.drawingMode !== null) return;
       isDragging = true;
       hasDragged = false;
       dragStartX = e.clientX;
@@ -363,6 +367,7 @@ export class HexMapView extends ItemView {
     this.regionBtn.addEventListener("click", () =>
       new RegionModal(this.app, this.plugin, this, () => {
         this.updateRegionBtnLabel();
+        (this.leaf as any).updateHeader();
         this.renderGrid();
       }).open(),
     );
@@ -544,6 +549,7 @@ export class HexMapView extends ItemView {
     new TerrainPickerModal(
       this.app,
       this.plugin,
+      this.plugin.getRegionPalette(this.activeRegionName),
       (terrainName: string | null) => {
         this.viewportEl?.removeClass("duckmage-terrain-picking");
         this.drawingMode = "terrain";
@@ -882,7 +888,7 @@ export class HexMapView extends ItemView {
       } else {
         if (this.terrainBtnPreview) this.terrainBtnPreview.textContent = "";
         const entry = this.paintTerrainName
-          ? this.plugin.settings.terrainPalette.find(
+          ? this.plugin.getRegionPalette(this.activeRegionName).find(
               (p) => p.name === this.paintTerrainName,
             )
           : undefined;
@@ -1005,7 +1011,7 @@ export class HexMapView extends ItemView {
     const folder = hexBase
       ? `${hexBase}/${this.activeRegionName}`
       : this.activeRegionName;
-    const palette = this.plugin.settings.terrainPalette ?? [];
+    const palette = this.plugin.getRegionPalette(this.activeRegionName);
     const isFlat = this.plugin.settings.hexOrientation === "flat";
     const gridContainer = this.viewportEl.createDiv({
       cls: `duckmage-hex-map-grid${isFlat ? " duckmage-grid-flat" : ""}`,
@@ -1231,7 +1237,7 @@ export class HexMapView extends ItemView {
     }
 
     const terrain = this.paintTerrainName;
-    const palette = this.plugin.settings.terrainPalette ?? [];
+    const palette = this.plugin.getRegionPalette(this.activeRegionName);
     const entry =
       terrain != null ? palette.find((p) => p.name === terrain) : undefined;
 

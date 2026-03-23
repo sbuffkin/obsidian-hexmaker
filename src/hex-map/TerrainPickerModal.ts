@@ -1,6 +1,7 @@
 import { App } from "obsidian";
 import { DuckmageModal } from "../DuckmageModal";
 import type DuckmagePlugin from "../DuckmagePlugin";
+import type { TerrainColor } from "../types";
 import { getIconUrl, createIconEl } from "../utils";
 import { TerrainEntryEditorModal } from "./TerrainEntryEditorModal";
 
@@ -13,6 +14,7 @@ export class TerrainPickerModal extends DuckmageModal {
   constructor(
     app: App,
     private plugin: DuckmagePlugin,
+    private palette: TerrainColor[],
     private onSelect: (terrainName: string | null) => void,
     private onPickMode?: () => void,
     private onDismiss?: () => void,
@@ -118,7 +120,7 @@ export class TerrainPickerModal extends DuckmageModal {
       this.close();
     });
 
-    for (const entry of this.plugin.settings.terrainPalette) {
+    for (const entry of this.palette) {
       const btn = grid.createDiv({ cls: "duckmage-terrain-option" });
       const preview = btn.createDiv({ cls: "duckmage-terrain-preview" });
       preview.style.backgroundColor = entry.color;
@@ -136,7 +138,7 @@ export class TerrainPickerModal extends DuckmageModal {
 
   private renderEditMode(): void {
     const { contentEl } = this;
-    const palette = this.plugin.settings.terrainPalette;
+    const palette = this.palette;
 
     const grid = contentEl.createDiv({
       cls: "duckmage-terrain-picker duckmage-terrain-picker-full",
@@ -164,6 +166,7 @@ export class TerrainPickerModal extends DuckmageModal {
           new TerrainEntryEditorModal(
             this.app,
             this.plugin,
+            palette,
             entry,
             () => { this.editChanged = true; renderTiles(); },
             () => { this.editChanged = true; renderTiles(); },
@@ -231,12 +234,13 @@ export class TerrainPickerModal extends DuckmageModal {
         palette.push(newEntry);
         this.editChanged = true;
         await this.plugin.saveSettings();
-        await this.plugin.ensureTerrainTables();
         renderTiles();
-        // Immediately open the editor for the new entry
+        // Open editor with isNew=true so doSave creates tables under the final name
+        // rather than scanning hexes for a rename.
         new TerrainEntryEditorModal(
           this.app,
           this.plugin,
+          palette,
           newEntry,
           () => {
             this.editChanged = true;
@@ -246,6 +250,7 @@ export class TerrainPickerModal extends DuckmageModal {
             this.editChanged = true;
             renderTiles();
           },
+          true,
         ).open();
       });
     };

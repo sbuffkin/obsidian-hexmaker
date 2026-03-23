@@ -2483,10 +2483,39 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 }
 
 .duckmage-region-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
     color: var(--text-normal);
+}
+
+.duckmage-region-palette-badge {
+    font-size: 0.75em;
+    color: var(--text-muted);
+    background: var(--background-modifier-hover);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: auto;
+}
+
+.duckmage-palette-mgmt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.duckmage-palette-mgmt-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.duckmage-palette-mgmt-name {
+    flex: 1;
 }
 
 .duckmage-region-item:hover {

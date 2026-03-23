@@ -8,6 +8,7 @@ export class HexTerrainPickerModal extends DuckmageModal {
   constructor(
     app: App,
     private plugin: DuckmagePlugin,
+    private palette: import("../types").TerrainColor[],
     private hexPath: string,
     private currentTerrain: string | null,
     private onPicked: () => void,
@@ -24,7 +25,7 @@ export class HexTerrainPickerModal extends DuckmageModal {
     const grid = contentEl.createDiv({
       cls: "duckmage-terrain-picker duckmage-terrain-picker-full",
     });
-    for (const entry of this.plugin.settings.terrainPalette) {
+    for (const entry of this.palette) {
       const btn = grid.createDiv({
         cls: `duckmage-terrain-option${entry.name === this.currentTerrain ? " is-selected" : ""}`,
       });
