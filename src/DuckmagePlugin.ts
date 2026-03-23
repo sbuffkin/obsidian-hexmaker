@@ -5,6 +5,7 @@ import { RandomTableView } from "./random-tables/RandomTableView";
 import { DuckmageSettingTab } from "./DuckmageSettingTab";
 import { DEFAULT_PALETTE_NAME, DEFAULT_SETTINGS, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
+import { BUNDLED_ICONS } from "./bundledIcons";
 import { parseWorkflow, buildWorkflowContent } from "./random-tables/workflow";
 import type { DuckmagePluginSettings, RegionData, TerrainColor, TerrainPalette } from "./types";
 import DEFAULT_HEX_TEMPLATE from "./defaultHexTemplate.md";
@@ -233,15 +234,8 @@ export default class DuckmagePlugin extends Plugin {
 
 	async loadAvailableIcons() {
 		this.vaultIconsSet = new Set();
-		const pluginIcons: string[] = [];
+		const pluginIcons: string[] = Array.from(BUNDLED_ICONS.keys());
 		const vaultIcons: string[] = [];
-
-		try {
-			const result = await this.app.vault.adapter.list(`${this.manifest.dir}/icons`);
-			pluginIcons.push(...result.files
-				.filter(f => f.toLowerCase().endsWith(".png"))
-				.map(f => f.split("/").pop() as string));
-		} catch {}
 
 		const iconsFolder = normalizeFolder(this.settings.iconsFolder ?? "");
 		if (iconsFolder) {

@@ -1,4 +1,5 @@
 import type DuckmagePlugin from "./DuckmagePlugin";
+import { BUNDLED_ICONS } from "./bundledIcons";
 
 export function normalizeFolder(path: string): string {
 	return path.replace(/^\/+|\/+$/g, "") || "";
@@ -51,5 +52,7 @@ export function getIconUrl(plugin: DuckmagePlugin, iconFilename: string): string
 		const folder = normalizeFolder(plugin.settings.iconsFolder ?? "");
 		return plugin.app.vault.adapter.getResourcePath(`${folder}/${iconFilename}`);
 	}
+	const bundled = BUNDLED_ICONS.get(iconFilename);
+	if (bundled) return bundled;
 	return plugin.app.vault.adapter.getResourcePath(`${plugin.manifest.dir}/icons/${iconFilename}`);
 }
