@@ -191,17 +191,26 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 	private getTerrainTablePath(name: string, type: "description" | "encounters"): string {
 		const folder = normalizeFolder(this.plugin.settings.tablesFolder);
 		const sub = folder ? `${folder}/terrain` : "terrain";
-		return `${sub}/${name} - ${type}.md`;
+		return `${sub}/${type}/${name}.md`;
 	}
 
 	private async renameTerrainTables(oldName: string, newName: string): Promise<void> {
 		for (const type of ["description", "encounters"] as const) {
 			const oldPath = this.getTerrainTablePath(oldName, type);
 			const newPath = this.getTerrainTablePath(newName, type);
-			const file = this.app.vault.getAbstractFileByPath(oldPath);
-			if (file instanceof TFile) {
-				try { await this.app.vault.rename(file, newPath); } catch { /* ignore */ }
-			}
+			// Don't overwrite if the new terrain already has its own tables
+			if (this.app.vault.getAbstractFileByPath(newPath)) continue;
+			const oldFile = this.app.vault.getAbstractFileByPath(oldPath);
+			if (!(oldFile instanceof TFile)) continue;
+			try {
+				let content = await this.app.vault.read(oldFile);
+				// Update the terrain frontmatter property to the new name
+				content = content.replace(/^terrain:[ \t].+$/m, `terrain: ${newName}`);
+				// Strip the old roller link so ensureRollerLink can add one with the correct path
+				content = content.replace(/^.*obsidian:\/\/duckmage-roll.*$\n?/m, "");
+				await this.app.vault.create(newPath, content);
+				await this.plugin.ensureRollerLink(newPath);
+			} catch { /* ignore */ }
 		}
 	}
 }

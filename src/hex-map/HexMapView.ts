@@ -29,6 +29,11 @@ import {
 import { RegionModal } from "./RegionModal";
 import type { RegionData } from "../types";
 
+type TerrainUndoEntry = { x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null };
+type UndoItem =
+  | { kind: "terrain"; entries: TerrainUndoEntry[] }
+  | { kind: "swap"; x1: number; y1: number; x2: number; y2: number };
+
 export class HexMapView extends ItemView {
   plugin: DuckmagePlugin;
   private zoom = 1;
@@ -82,11 +87,11 @@ export class HexMapView extends ItemView {
   >();
   private flushing = new Set<string>(); // "t:<path>" or "i:<path>"
   private savingIndicatorEl: HTMLElement | null = null;
-  // Terrain undo
-  private readonly TERRAIN_UNDO_DEPTH = 20;
-  private terrainUndoStack: Array<{ x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null }[]> = [];
-  private terrainRedoStack: Array<{ x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null }[]> = [];
-  private currentTerrainStroke: Map<string, { x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null }> | null = null;
+  // Undo / redo
+  private readonly UNDO_DEPTH = 20;
+  private undoStack: UndoItem[] = [];
+  private redoStack: UndoItem[] = [];
+  private currentTerrainStroke: Map<string, TerrainUndoEntry> | null = null;
   private undoBtn: HTMLButtonElement | null = null;
   private redoBtn: HTMLButtonElement | null = null;
   activeRegionName = "default";
@@ -302,8 +307,11 @@ export class HexMapView extends ItemView {
             this.exitFactionLinkMode();
           else if (this.drawingMode === "swap") this.exitSwapMode();
           else {
+            if (this.drawingMode === "road") this.exitRoadMode();
+            if (this.drawingMode === "river") this.exitRiverMode();
             this.drawingMode = null;
             this.updateToolbarButtonStates();
+            this.updateRoadRiverOverlay();
           }
         } else {
           lastOffHexRightClick = now;
@@ -375,8 +383,9 @@ export class HexMapView extends ItemView {
     this.updateRegionBtnLabel();
     this.regionBtn.addEventListener("click", () =>
       new RegionModal(this.app, this.plugin, this, () => {
-        this.terrainUndoStack = [];
-        this.terrainRedoStack = [];
+        this.exitTerrainMode();
+        this.undoStack = [];
+        this.redoStack = [];
         this.updateUndoButton();
         this.updateRegionBtnLabel();
         (this.leaf as any).updateHeader();
@@ -387,18 +396,18 @@ export class HexMapView extends ItemView {
     this.undoBtn = controlsEl.createEl("button", {
       cls: "duckmage-undo-btn-map",
       text: "↩",
-      attr: { title: "Undo last terrain stroke (up to 20)" },
+      attr: { title: "Undo (up to 20)" },
     });
     this.undoBtn.disabled = true;
-    this.undoBtn.addEventListener("click", () => this.undoLastTerrainStroke());
+    this.undoBtn.addEventListener("click", () => { void this.undo(); });
 
     this.redoBtn = controlsEl.createEl("button", {
       cls: "duckmage-undo-btn-map duckmage-redo-btn-map",
       text: "↪",
-      attr: { title: "Redo last undone terrain stroke" },
+      attr: { title: "Redo" },
     });
     this.redoBtn.disabled = true;
-    this.redoBtn.addEventListener("click", () => this.redoLastTerrainStroke());
+    this.redoBtn.addEventListener("click", () => { void this.redo(); });
 
     const helpBtn = controlsEl.createEl("button", {
       cls: "duckmage-help-btn",
@@ -561,7 +570,19 @@ export class HexMapView extends ItemView {
     );
   }
 
+  private exitRoadMode(): void {
+    this.activeRoadEnd = null;
+    this.activeRoadChain = null;
+  }
+
+  private exitRiverMode(): void {
+    this.activeRiverEnd = null;
+    this.activeRiverChain = null;
+  }
+
   private setDrawingMode(mode: "road" | "river"): void {
+    if (this.drawingMode === "road") this.exitRoadMode();
+    if (this.drawingMode === "river") this.exitRiverMode();
     this.drawingMode = this.drawingMode === mode ? null : mode;
     this.paintTerrainName = null;
     this.paintIconName = null;
@@ -714,50 +735,34 @@ export class HexMapView extends ItemView {
       return;
     }
 
-    const src = this.swapSource;
-
-    // Clicking the source again: cancel selection entirely
-    if (x === src.x && y === src.y) {
+    // Clicking the source again: cancel selection
+    if (x === this.swapSource.x && y === this.swapSource.y) {
       this.swapSource = null;
-      this.swapDest = null;
       this.clearSwapHighlights();
       return;
     }
 
-    // Clicking the current dest again (at any speed): confirm the swap
-    if (this.swapDest && x === this.swapDest.x && y === this.swapDest.y) {
-      const src = { ...this.swapSource };
-      const dst = { ...this.swapDest };
-      this.swapSource = null;
-      this.swapDest = null;
-      this.clearSwapHighlights();
-      await this.executeHexSwap(src.x, src.y, dst.x, dst.y);
-      return;
-    }
-
-    // Set or change destination
-    // Clear old dest overlay (but keep source overlay)
-    this.viewportEl
-      ?.querySelectorAll(".duckmage-hex-swap-dest")
-      .forEach((el) => el.remove());
-    this.swapDest = { x, y };
-    this.highlightSwapHex(x, y, "duckmage-hex-swap-dest");
+    // Any other hex: execute swap immediately then deselect tool
+    const src = { ...this.swapSource };
+    this.clearSwapHighlights();
+    this.swapSource = null;
+    this.swapDest = null;
+    await this.executeHexSwap(src.x, src.y, x, y);
+    this.exitSwapMode();
   }
 
   // Double-click on the destination confirms the swap
   private async onHexDblClick(x: number, y: number): Promise<void> {
-    if (this.drawingMode !== "swap") return;
-    if (!this.swapSource || !this.swapDest) return;
-    if (x !== this.swapDest.x || y !== this.swapDest.y) return;
-
-    const src = { ...this.swapSource };
-    const dst = { ...this.swapDest };
-    this.swapSource = null;
-    this.swapDest = null;
-    this.clearSwapHighlights();
-
-    await this.executeHexSwap(src.x, src.y, dst.x, dst.y);
-    // Stay in swap mode for chained swaps
+    if (this.drawingMode === "road") {
+      this.exitRoadMode();
+      this.updateRoadRiverOverlay();
+      return;
+    }
+    if (this.drawingMode === "river") {
+      this.exitRiverMode();
+      this.updateRoadRiverOverlay();
+      return;
+    }
   }
 
   private async performSwap(pathA: string, pathB: string): Promise<void> {
@@ -803,6 +808,7 @@ export class HexMapView extends ItemView {
     y1: number,
     x2: number,
     y2: number,
+    isUndoRedo = false,
   ): Promise<void> {
     const pathA = this.plugin.hexPath(x1, y1, this.activeRegionName);
     const pathB = this.plugin.hexPath(x2, y2, this.activeRegionName);
@@ -860,6 +866,13 @@ export class HexMapView extends ItemView {
           once: true,
         });
       }
+    }
+
+    if (!isUndoRedo) {
+      this.undoStack.push({ kind: "swap", x1, y1, x2, y2 });
+      if (this.undoStack.length > this.UNDO_DEPTH) this.undoStack.shift();
+      this.redoStack = [];
+      this.updateUndoButton();
     }
   }
 
@@ -1441,32 +1454,39 @@ export class HexMapView extends ItemView {
       return;
     }
     const entries = [...this.currentTerrainStroke.values()];
-    this.terrainUndoStack.push(entries);
-    if (this.terrainUndoStack.length > this.TERRAIN_UNDO_DEPTH)
-      this.terrainUndoStack.shift();
-    this.terrainRedoStack = []; // new paint invalidates redo history
+    this.undoStack.push({ kind: "terrain", entries });
+    if (this.undoStack.length > this.UNDO_DEPTH) this.undoStack.shift();
+    this.redoStack = []; // new paint invalidates redo history
     this.currentTerrainStroke = null;
     this.updateUndoButton();
   }
 
-  private undoLastTerrainStroke(): void {
-    const stroke = this.terrainUndoStack.pop();
-    if (!stroke) return;
-    this.terrainRedoStack.push(stroke);
-    this.applyStroke(stroke, "old");
+  private async undo(): Promise<void> {
+    const item = this.undoStack.pop();
+    if (!item) return;
+    this.redoStack.push(item);
+    if (item.kind === "terrain") {
+      this.applyStroke(item.entries, "old");
+    } else {
+      await this.executeHexSwap(item.x1, item.y1, item.x2, item.y2, true);
+    }
     this.updateUndoButton();
   }
 
-  private redoLastTerrainStroke(): void {
-    const stroke = this.terrainRedoStack.pop();
-    if (!stroke) return;
-    this.terrainUndoStack.push(stroke);
-    this.applyStroke(stroke, "new");
+  private async redo(): Promise<void> {
+    const item = this.redoStack.pop();
+    if (!item) return;
+    this.undoStack.push(item);
+    if (item.kind === "terrain") {
+      this.applyStroke(item.entries, "new");
+    } else {
+      await this.executeHexSwap(item.x1, item.y1, item.x2, item.y2, true);
+    }
     this.updateUndoButton();
   }
 
   private applyStroke(
-    stroke: { x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null }[],
+    stroke: TerrainUndoEntry[],
     which: "old" | "new",
   ): void {
     for (const entry of stroke) {
@@ -1488,8 +1508,8 @@ export class HexMapView extends ItemView {
   }
 
   private updateUndoButton(): void {
-    if (this.undoBtn) this.undoBtn.disabled = this.terrainUndoStack.length === 0;
-    if (this.redoBtn) this.redoBtn.disabled = this.terrainRedoStack.length === 0;
+    if (this.undoBtn) this.undoBtn.disabled = this.undoStack.length === 0;
+    if (this.redoBtn) this.redoBtn.disabled = this.redoStack.length === 0;
   }
 
   private updateSavingIndicator(): void {

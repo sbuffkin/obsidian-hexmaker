@@ -229,28 +229,31 @@ export class TerrainPickerModal extends DuckmageModal {
         })
         .setText("+");
       addTile.createSpan({ text: "Add", cls: "duckmage-terrain-option-name" });
-      addTile.addEventListener("click", async () => {
-        const newEntry = { name: "New", color: "#888888" };
-        palette.push(newEntry);
-        this.editChanged = true;
-        await this.plugin.saveSettings();
-        renderTiles();
-        // Open editor with isNew=true so doSave creates tables under the final name
-        // rather than scanning hexes for a rename.
-        new TerrainEntryEditorModal(
+      addTile.addEventListener("click", () => {
+        new TerrainTemplatePickerModal(
           this.app,
           this.plugin,
           palette,
-          newEntry,
-          () => {
+          async (template) => {
+            const newEntry: TerrainColor = template
+              ? { ...template }
+              : { name: "New", color: "#888888" };
+            palette.push(newEntry);
             this.editChanged = true;
+            await this.plugin.saveSettings();
             renderTiles();
+            // Open editor with isNew=true so doSave creates tables under the final name
+            // rather than scanning hexes for a rename.
+            new TerrainEntryEditorModal(
+              this.app,
+              this.plugin,
+              palette,
+              newEntry,
+              () => { this.editChanged = true; renderTiles(); },
+              () => { this.editChanged = true; renderTiles(); },
+              true,
+            ).open();
           },
-          () => {
-            this.editChanged = true;
-            renderTiles();
-          },
-          true,
         ).open();
       });
     };
@@ -271,5 +274,63 @@ export class TerrainPickerModal extends DuckmageModal {
       await this.plugin.refreshAllTerrainEncounterLinks();
       refreshBtn.setText("Done");
     });
+  }
+}
+
+/** Shown when the user clicks "+" — lets them pick a terrain from another palette as a template. */
+class TerrainTemplatePickerModal extends DuckmageModal {
+  constructor(
+    app: App,
+    private plugin: DuckmagePlugin,
+    private currentPalette: TerrainColor[],
+    private onPick: (template: TerrainColor | null) => void,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("duckmage-hex-editor");
+    contentEl.createEl("h3", { text: "Add terrain" });
+
+    const blankBtn = contentEl.createEl("button", {
+      cls: "duckmage-draw-btn mod-cta",
+      text: "New blank",
+    });
+    blankBtn.addEventListener("click", () => { this.onPick(null); this.close(); });
+
+    // Collect terrains from other palettes not already in this one
+    const currentNames = new Set(this.currentPalette.map(t => t.name));
+    const byPalette: { name: string; terrains: TerrainColor[] }[] = [];
+    for (const pal of this.plugin.settings.terrainPalettes) {
+      if (pal.terrains === this.currentPalette) continue;
+      const available = pal.terrains.filter(t => !currentNames.has(t.name));
+      if (available.length > 0) byPalette.push({ name: pal.name, terrains: available });
+    }
+
+    if (byPalette.length > 0) {
+      contentEl.createEl("p", {
+        text: "Or copy from an existing palette:",
+        cls: "setting-item-description",
+      });
+      const list = contentEl.createDiv({ cls: "duckmage-terrain-template-list" });
+      for (const { name: palName, terrains } of byPalette) {
+        list.createDiv({ cls: "duckmage-terrain-template-group", text: palName });
+        for (const t of terrains) {
+          const row = list.createDiv({ cls: "duckmage-terrain-template-row" });
+          const swatch = row.createSpan({ cls: "duckmage-terrain-template-swatch" });
+          swatch.style.background = t.color;
+          row.createSpan({ text: t.name });
+          row.addEventListener("click", () => { this.onPick(t); this.close(); });
+        }
+      }
+    }
+
+    this.makeDraggable();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }

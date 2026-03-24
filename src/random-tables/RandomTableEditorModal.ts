@@ -85,7 +85,17 @@ export class RandomTableEditorModal extends DuckmageModal {
 		const entriesSection = contentEl.createDiv({ cls: "duckmage-table-editor-entries-section" });
 
 		// ── Existing rows ─────────────────────────────────────────────────
-		entriesSection.createEl("p", { text: "Entries", cls: "duckmage-table-editor-heading" });
+		const entriesHeadingRow = entriesSection.createDiv({ cls: "duckmage-table-editor-entries-heading-row" });
+		entriesHeadingRow.createEl("p", { text: "Entries", cls: "duckmage-table-editor-heading" });
+		const addOneToAllBtn = entriesHeadingRow.createEl("button", {
+			text: "+1 to all",
+			cls: "duckmage-table-editor-add-one-btn",
+			attr: { title: "Add 1 to every entry's weight" },
+		});
+		addOneToAllBtn.addEventListener("click", () => {
+			for (const e of entries) e.weight += 1;
+			renderRows();
+		});
 		const rowsEl = entriesSection.createDiv({ cls: "duckmage-table-editor-rows" });
 
 		let dragSrcIndex = -1;
@@ -134,6 +144,15 @@ export class RandomTableEditorModal extends DuckmageModal {
 				weightInput.min = "1";
 				weightInput.addEventListener("input", () => {
 					entries[i].weight = Math.max(1, parseInt(weightInput.value, 10) || 1);
+				});
+				weightInput.addEventListener("keydown", (e: KeyboardEvent) => {
+					if (e.key === "ArrowDown" && entries[i].weight <= 1) {
+						e.preventDefault();
+						for (let j = 0; j < entries.length; j++) {
+							if (j !== i) entries[j].weight += 1;
+						}
+						renderRows();
+					}
 				});
 
 				const delBtn = row.createEl("button", { text: "×", cls: "duckmage-table-editor-del" });

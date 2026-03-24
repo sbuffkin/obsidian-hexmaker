@@ -1607,7 +1607,7 @@ div.duckmage-terrain-preview-icon {
 /* ? help button — bottom-left of the map controls overlay */
 .duckmage-help-btn {
     position: absolute;
-    bottom: 8px;
+    bottom: 42px;
     left: 8px;
     z-index: 10;
     width: 26px;
@@ -2224,6 +2224,30 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
     overflow-y: auto;
     min-height: 60px;
 }
+.duckmage-table-editor-entries-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.duckmage-table-editor-entries-heading-row .duckmage-table-editor-heading {
+    flex: 1;
+    margin: 12px 0 4px;
+}
+.duckmage-table-editor-add-one-btn {
+    font-size: 0.78em;
+    padding: 2px 7px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-top: 4px;
+}
+.duckmage-table-editor-add-one-btn:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover);
+}
 .duckmage-table-editor-heading {
     font-weight: 600;
     font-size: 0.85em;
@@ -2562,8 +2586,8 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 /* Saving / background-write indicator */
 .duckmage-saving-indicator {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
+    bottom: 8px;
+    left: 8px;
     z-index: 10;
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
@@ -2817,4 +2841,45 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
 }
 .duckmage-wf-editor-add-btn-row {
     margin-top: 6px;
+}
+
+/* ── Terrain template picker (add-from-existing) ─────────────────────────── */
+
+.duckmage-terrain-template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.duckmage-terrain-template-group {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 4px 2px;
+}
+
+.duckmage-terrain-template-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.duckmage-terrain-template-row:hover {
+    background: var(--background-modifier-hover);
+}
+
+.duckmage-terrain-template-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid var(--background-modifier-border);
 }

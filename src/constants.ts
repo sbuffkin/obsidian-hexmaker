@@ -1,6 +1,8 @@
 import type { TerrainColor, DuckmagePluginSettings } from "./types";
 
-export const DEFAULT_PALETTE_NAME = "Default";
+export const DEFAULT_PALETTE_NAME = "Default"; // kept for migration of legacy saves
+export const LIMITED_PALETTE_NAME = "Limited";
+export const EXPANDED_PALETTE_NAME = "Expanded";
 
 export const VIEW_TYPE_HEX_MAP = "duckmage-hex-map";
 export const VIEW_TYPE_HEX_TABLE = "duckmage-hex-table";
@@ -270,6 +272,16 @@ export const DEFAULT_TERRAIN_PALETTE: TerrainColor[] = [
   },
 ];
 
+export const LIMITED_TERRAIN_PALETTE: TerrainColor[] = [
+  { name: "ocean",    color: "#29507f",  category: "sea" },
+  { name: "grass",    color: "#69a168",  icon: "bw-grassland.png", category: "lowlands" },
+  { name: "hill",     color: "#e0e8a1",  icon: "bw-hills.png",     category: "lowlands" },
+  { name: "forest",   color: "#2d9553",  icon: "bw-forest.png",    category: "forest" },
+  { name: "mountain", color: "#a77649",  icon: "bw-mountain.png",  category: "mountain" },
+  { name: "desert",   color: "#ecdba2",  category: "desert" },
+  { name: "snow",     color: "#e0f2fe",  category: "snow" },
+];
+
 export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   mySetting: "default",
   worldFolder: "world",
@@ -282,12 +294,13 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   templatePath: "",
   hexGap: "0.15",
   terrainPalettes: [
-    { name: DEFAULT_PALETTE_NAME, terrains: DEFAULT_TERRAIN_PALETTE },
+    { name: LIMITED_PALETTE_NAME,  terrains: LIMITED_TERRAIN_PALETTE },
+    { name: EXPANDED_PALETTE_NAME, terrains: DEFAULT_TERRAIN_PALETTE },
   ],
   regions: [
     {
       name: "default",
-      paletteName: DEFAULT_PALETTE_NAME,
+      paletteName: LIMITED_PALETTE_NAME,
       gridSize: { cols: 20, rows: 16 },
       gridOffset: { x: 0, y: 0 },
       roadChains: [],
