@@ -27,12 +27,14 @@ import {
   VIEW_TYPE_RANDOM_TABLES,
 } from "../constants";
 import { RegionModal } from "./RegionModal";
-import type { RegionData } from "../types";
+import { PathPickerModal } from "./PathPickerModal";
+import type { RegionData, PathChain } from "../types";
 
 type TerrainUndoEntry = { x: number; y: number; path: string; oldTerrain: string | null; newTerrain: string | null };
 type UndoItem =
   | { kind: "terrain"; entries: TerrainUndoEntry[] }
-  | { kind: "swap"; x1: number; y1: number; x2: number; y2: number };
+  | { kind: "swap"; x1: number; y1: number; x2: number; y2: number }
+  | { kind: "path"; regionName: string; before: PathChain[]; after: PathChain[] };
 
 export class HexMapView extends ItemView {
   plugin: DuckmagePlugin;
@@ -41,16 +43,15 @@ export class HexMapView extends ItemView {
   private panY = 0;
   private viewportEl: HTMLElement | null = null;
   private drawingMode:
-    | "road"
-    | "river"
+    | "path"
     | "terrain"
     | "icon"
     | "tableLink"
     | "factionLink"
     | "swap"
     | null = null;
-  private roadToolbarBtn: HTMLButtonElement | null = null;
-  private riverToolbarBtn: HTMLButtonElement | null = null;
+  private pathToolbarBtn: HTMLButtonElement | null = null;
+  private pathBtnSwatch: HTMLElement | null = null;
   private terrainToolbarBtn: HTMLButtonElement | null = null;
   private terrainBtnPreview: HTMLSpanElement | null = null;
   private iconToolbarBtn: HTMLButtonElement | null = null;
@@ -65,10 +66,9 @@ export class HexMapView extends ItemView {
   private swapSource: { x: number; y: number } | null = null;
   private swapDest: { x: number; y: number } | null = null;
   // The last-clicked hex key and the specific chain being extended
-  private activeRoadEnd: string | null = null;
-  private activeRiverEnd: string | null = null;
-  private activeRoadChain: string[] | null = null;
-  private activeRiverChain: string[] | null = null;
+  private activePathTypeName: string | null = null;
+  private activePathEnd: string | null = null;
+  private activePathChain: PathChain | null = null;
   private paintTerrainName: string | null = null;
   private paintIconName: string | null = null;
   private terrainPickMode = false;
@@ -292,7 +292,7 @@ export class HexMapView extends ItemView {
         const onHex = (e.target as HTMLElement).closest(".duckmage-hex");
         if (
           onHex &&
-          (this.drawingMode === "road" || this.drawingMode === "river")
+          this.drawingMode === "path"
         )
           return;
         e.preventDefault();
@@ -307,11 +307,10 @@ export class HexMapView extends ItemView {
             this.exitFactionLinkMode();
           else if (this.drawingMode === "swap") this.exitSwapMode();
           else {
-            if (this.drawingMode === "road") this.exitRoadMode();
-            if (this.drawingMode === "river") this.exitRiverMode();
+            if (this.drawingMode === "path") this.exitPathMode();
             this.drawingMode = null;
             this.updateToolbarButtonStates();
-            this.updateRoadRiverOverlay();
+            this.updatePathOverlay();
           }
         } else {
           lastOffHexRightClick = now;
@@ -384,6 +383,7 @@ export class HexMapView extends ItemView {
     this.regionBtn.addEventListener("click", () =>
       new RegionModal(this.app, this.plugin, this, () => {
         this.exitTerrainMode();
+        this.exitPathMode();
         this.undoStack = [];
         this.redoStack = [];
         this.updateUndoButton();
@@ -533,21 +533,12 @@ export class HexMapView extends ItemView {
       this.handleIconButton(),
     );
 
-    this.roadToolbarBtn = toolbar.createEl("button", {
-      cls: "duckmage-draw-btn",
-      text: "Road",
+    this.pathToolbarBtn = toolbar.createEl("button", {
+      cls: "duckmage-draw-btn duckmage-draw-btn-path",
     });
-    this.roadToolbarBtn.addEventListener("click", () =>
-      this.setDrawingMode("road"),
-    );
-
-    this.riverToolbarBtn = toolbar.createEl("button", {
-      cls: "duckmage-draw-btn",
-      text: "River",
-    });
-    this.riverToolbarBtn.addEventListener("click", () =>
-      this.setDrawingMode("river"),
-    );
+    this.pathToolbarBtn.createSpan({ text: "Path" });
+    this.pathBtnSwatch = this.pathToolbarBtn.createSpan({ cls: "duckmage-path-btn-swatch" });
+    this.pathToolbarBtn.addEventListener("click", () => this.handlePathButton());
 
     this.tableLinkBtn = toolbar.createEl("button", {
       cls: "duckmage-draw-btn duckmage-draw-btn-tablelink",
@@ -570,24 +561,9 @@ export class HexMapView extends ItemView {
     );
   }
 
-  private exitRoadMode(): void {
-    this.activeRoadEnd = null;
-    this.activeRoadChain = null;
-  }
-
-  private exitRiverMode(): void {
-    this.activeRiverEnd = null;
-    this.activeRiverChain = null;
-  }
-
-  private setDrawingMode(mode: "road" | "river"): void {
-    if (this.drawingMode === "road") this.exitRoadMode();
-    if (this.drawingMode === "river") this.exitRiverMode();
-    this.drawingMode = this.drawingMode === mode ? null : mode;
-    this.paintTerrainName = null;
-    this.paintIconName = null;
-    this.updateToolbarButtonStates();
-    this.updateRoadRiverOverlay(); // refresh active-end marker visibility
+  private exitPathMode(): void {
+    this.activePathEnd = null;
+    this.activePathChain = null;
   }
 
   private handleTerrainButton(): void {
@@ -753,14 +729,9 @@ export class HexMapView extends ItemView {
 
   // Double-click on the destination confirms the swap
   private async onHexDblClick(x: number, y: number): Promise<void> {
-    if (this.drawingMode === "road") {
-      this.exitRoadMode();
-      this.updateRoadRiverOverlay();
-      return;
-    }
-    if (this.drawingMode === "river") {
-      this.exitRiverMode();
-      this.updateRoadRiverOverlay();
+    if (this.drawingMode === "path") {
+      this.exitPathMode();
+      this.updatePathOverlay();
       return;
     }
   }
@@ -877,11 +848,19 @@ export class HexMapView extends ItemView {
   }
 
   private updateToolbarButtonStates(): void {
-    this.roadToolbarBtn?.toggleClass("is-active", this.drawingMode === "road");
-    this.riverToolbarBtn?.toggleClass(
-      "is-active",
-      this.drawingMode === "river",
-    );
+    this.pathToolbarBtn?.toggleClass("is-active", this.drawingMode === "path");
+    // Update path button swatch color to show active type
+    if (this.pathBtnSwatch) {
+      const activeType = this.activePathTypeName
+        ? this.plugin.settings.pathTypes.find(p => p.name === this.activePathTypeName)
+        : this.plugin.settings.pathTypes[0];
+      if (activeType) {
+        this.pathBtnSwatch.style.backgroundColor = activeType.color;
+        this.pathBtnSwatch.style.display = "inline-block";
+      } else {
+        this.pathBtnSwatch.style.display = "none";
+      }
+    }
     this.terrainToolbarBtn?.toggleClass(
       "is-active",
       this.drawingMode === "terrain",
@@ -1128,7 +1107,7 @@ export class HexMapView extends ItemView {
       }
     }
 
-    this.renderRoadRiverOverlay(gridContainer);
+    this.renderPathOverlay(gridContainer);
   }
 
   private openHexEditorModal(x: number, y: number): void {
@@ -1161,8 +1140,8 @@ export class HexMapView extends ItemView {
 
   private onHexContextMenu(evt: MouseEvent, x: number, y: number): void {
     evt.preventDefault();
-    if (this.drawingMode === "road" || this.drawingMode === "river") {
-      this.onHexDeleteClick(x, y);
+    if (this.drawingMode === "path") {
+      void this.onHexPathDeleteClick(x, y);
       return;
     }
     if (this.drawingMode === "swap") {
@@ -1209,8 +1188,8 @@ export class HexMapView extends ItemView {
   }
 
   private async onHexClick(x: number, y: number): Promise<void> {
-    if (this.drawingMode === "road" || this.drawingMode === "river") {
-      await this.onHexDrawClick(x, y);
+    if (this.drawingMode === "path") {
+      await this.onHexPathDrawClick(x, y);
       return;
     }
     if (this.drawingMode === "terrain") {
@@ -1335,7 +1314,7 @@ export class HexMapView extends ItemView {
       }
       if (icon !== null) hexEl.addClass("duckmage-hex-exists");
     }
-    this.updateRoadRiverOverlay();
+    this.updatePathOverlay();
 
     // ── Queue background file write (coalescing per-hex) ──────────────────
     this.scheduleIconWrite(x, y, path, icon);
@@ -1467,8 +1446,10 @@ export class HexMapView extends ItemView {
     this.redoStack.push(item);
     if (item.kind === "terrain") {
       this.applyStroke(item.entries, "old");
-    } else {
+    } else if (item.kind === "swap") {
       await this.executeHexSwap(item.x1, item.y1, item.x2, item.y2, true);
+    } else {
+      await this.applyPathSnapshot(item.regionName, item.before);
     }
     this.updateUndoButton();
   }
@@ -1479,10 +1460,22 @@ export class HexMapView extends ItemView {
     this.undoStack.push(item);
     if (item.kind === "terrain") {
       this.applyStroke(item.entries, "new");
-    } else {
+    } else if (item.kind === "swap") {
       await this.executeHexSwap(item.x1, item.y1, item.x2, item.y2, true);
+    } else {
+      await this.applyPathSnapshot(item.regionName, item.after);
     }
     this.updateUndoButton();
+  }
+
+  private async applyPathSnapshot(regionName: string, chains: PathChain[]): Promise<void> {
+    const region = this.plugin.getRegion(regionName);
+    if (!region) return;
+    region.pathChains = this.cloneChains(chains);
+    // Clear active chain tracking — the restored state may not match
+    this.exitPathMode();
+    await this.plugin.saveSettings();
+    this.updatePathOverlay();
   }
 
   private applyStroke(
@@ -1661,111 +1654,121 @@ export class HexMapView extends ItemView {
     }
   }
 
-  private async onHexDrawClick(x: number, y: number): Promise<void> {
+  private handlePathButton(): void {
+    new PathPickerModal(
+      this.app,
+      this.plugin,
+      this.activePathTypeName,
+      (typeName) => {
+        this.activePathTypeName = typeName;
+        this.drawingMode = "path";
+        this.updateToolbarButtonStates();
+        this.updatePathOverlay();
+      },
+      () => {
+        if (this.drawingMode !== "path") this.updateToolbarButtonStates();
+      },
+    ).open();
+  }
+
+  /** Deep-clone a pathChains array for undo/redo snapshot. */
+  private cloneChains(chains: PathChain[]): PathChain[] {
+    return chains.map(c => ({ typeName: c.typeName, hexes: [...c.hexes] }));
+  }
+
+  private pushPathUndo(regionName: string, before: PathChain[], after: PathChain[]): void {
+    this.undoStack.push({ kind: "path", regionName, before, after });
+    if (this.undoStack.length > this.UNDO_DEPTH) this.undoStack.shift();
+    this.redoStack = [];
+    this.updateUndoButton();
+  }
+
+  private async onHexPathDrawClick(x: number, y: number): Promise<void> {
+    if (!this.activePathTypeName) return;
     const key = `${x}_${y}`;
     const region = this.getActiveRegion();
-    const chains =
-      this.drawingMode === "road" ? region.roadChains : region.riverChains;
-    const activeEnd =
-      this.drawingMode === "road" ? this.activeRoadEnd : this.activeRiverEnd;
-    const activeChain =
-      this.drawingMode === "road"
-        ? this.activeRoadChain
-        : this.activeRiverChain;
+    const chains = region.pathChains.filter(c => c.typeName === this.activePathTypeName);
+    const before = this.cloneChains(region.pathChains);
 
     // ── If adjacent to active end, extend that chain ─────────────────────
-    if (activeEnd !== null) {
-      const [ax, ay] = activeEnd.split("_").map(Number);
+    if (this.activePathEnd !== null) {
+      const [ax, ay] = this.activePathEnd.split("_").map(Number);
       const isAdjacent = this.hexNeighbors(ax, ay).some(
         ([nx, ny]) => nx === x && ny === y,
       );
       if (isAdjacent) {
-        // Prefer tracked reference; fall back to last-element scan
-        let target: string[] | undefined;
+        let target: PathChain | undefined;
         if (
-          activeChain !== null &&
-          activeChain[activeChain.length - 1] === activeEnd
+          this.activePathChain !== null &&
+          this.activePathChain.hexes[this.activePathChain.hexes.length - 1] === this.activePathEnd
         ) {
-          target = activeChain;
+          target = this.activePathChain;
         } else {
-          target = chains.find((c) => c[c.length - 1] === activeEnd);
+          target = chains.find((c) => c.hexes[c.hexes.length - 1] === this.activePathEnd);
         }
         if (target) {
-          target.push(key);
-          if (this.drawingMode === "road") {
-            this.activeRoadEnd = key;
-            this.activeRoadChain = target;
-          } else {
-            this.activeRiverEnd = key;
-            this.activeRiverChain = target;
-          }
+          target.hexes.push(key);
+          this.activePathEnd = key;
+          this.activePathChain = target;
+          this.pushPathUndo(region.name, before, this.cloneChains(region.pathChains));
           await this.plugin.saveSettings();
-          this.updateRoadRiverOverlay();
+          this.updatePathOverlay();
           return;
         }
       }
     }
 
     // ── Not adjacent (or no active chain) — start a new chain ────────────
-    const newChain = [key];
-    chains.push(newChain);
-    if (this.drawingMode === "road") {
-      this.activeRoadEnd = key;
-      this.activeRoadChain = newChain;
-    } else {
-      this.activeRiverEnd = key;
-      this.activeRiverChain = newChain;
-    }
+    const newChain: PathChain = { typeName: this.activePathTypeName, hexes: [key] };
+    region.pathChains.push(newChain);
+    this.activePathEnd = key;
+    this.activePathChain = newChain;
+    this.pushPathUndo(region.name, before, this.cloneChains(region.pathChains));
     await this.plugin.saveSettings();
-    this.updateRoadRiverOverlay();
+    this.updatePathOverlay();
   }
 
-  private async onHexDeleteClick(x: number, y: number): Promise<void> {
+  private async onHexPathDeleteClick(x: number, y: number): Promise<void> {
     const key = `${x}_${y}`;
     const region = this.getActiveRegion();
-    const chains =
-      this.drawingMode === "road" ? region.roadChains : region.riverChains;
+    const chains = this.activePathTypeName
+      ? region.pathChains.filter(c => c.typeName === this.activePathTypeName)
+      : region.pathChains;
+    const before = this.cloneChains(region.pathChains);
 
     for (let ci = 0; ci < chains.length; ci++) {
-      const pos = chains[ci].indexOf(key);
+      const pos = chains[ci].hexes.indexOf(key);
       if (pos === -1) continue;
 
       const chain = chains[ci];
-      const activeChain =
-        this.drawingMode === "road"
-          ? this.activeRoadChain
-          : this.activeRiverChain;
-      const isActiveChain = chain === activeChain;
+      const isActiveChain = chain === this.activePathChain;
 
-      if (chain.length === 1) {
-        chains.splice(ci, 1);
-        if (isActiveChain) {
-          if (this.drawingMode === "road") this.activeRoadChain = null;
-          else this.activeRiverChain = null;
-        }
+      if (chain.hexes.length === 1) {
+        // Remove entire chain from region.pathChains
+        const idx = region.pathChains.indexOf(chain);
+        if (idx !== -1) region.pathChains.splice(idx, 1);
+        if (isActiveChain) this.activePathChain = null;
       } else if (pos === 0) {
-        chain.splice(0, 1); // in-place; reference stays valid
-      } else if (pos === chain.length - 1) {
-        chain.splice(pos, 1); // in-place; reference stays valid
+        chain.hexes.splice(0, 1);
+      } else if (pos === chain.hexes.length - 1) {
+        chain.hexes.splice(pos, 1);
       } else {
-        chains.splice(ci, 1, chain.slice(0, pos), chain.slice(pos + 1));
-        if (isActiveChain) {
-          if (this.drawingMode === "road") this.activeRoadChain = null;
-          else this.activeRiverChain = null;
-        }
+        // Split: replace with two chains
+        const left: PathChain  = { typeName: chain.typeName, hexes: chain.hexes.slice(0, pos) };
+        const right: PathChain = { typeName: chain.typeName, hexes: chain.hexes.slice(pos + 1) };
+        const idx = region.pathChains.indexOf(chain);
+        if (idx !== -1) region.pathChains.splice(idx, 1, left, right);
+        if (isActiveChain) this.activePathChain = null;
       }
 
-      if (this.drawingMode === "road" && this.activeRoadEnd === key) {
-        this.activeRoadEnd = null;
-        this.activeRoadChain = null;
-      }
-      if (this.drawingMode === "river" && this.activeRiverEnd === key) {
-        this.activeRiverEnd = null;
-        this.activeRiverChain = null;
+      if (this.activePathEnd === key) {
+        this.activePathEnd = null;
+        this.activePathChain = null;
       }
 
+      this.pushPathUndo(region.name, before, this.cloneChains(region.pathChains));
       await this.plugin.saveSettings();
-      this.updateRoadRiverOverlay();
+      this.updatePathOverlay();
       return;
     }
   }
@@ -1811,8 +1814,8 @@ export class HexMapView extends ItemView {
         ];
   }
 
-  private renderRoadRiverOverlay(gridContainer: HTMLElement): void {
-    this.viewportEl?.querySelector("svg.duckmage-road-river-svg")?.remove();
+  private renderPathOverlay(gridContainer: HTMLElement): void {
+    this.viewportEl?.querySelector("svg.duckmage-path-svg")?.remove();
     this.viewportEl?.removeClass("duckmage-svg-labels-active");
     // Restore any icons that were hidden when the previous SVG elevated them
     gridContainer
@@ -1823,13 +1826,9 @@ export class HexMapView extends ItemView {
       });
 
     const region = this.getActiveRegion();
-    const roadChains = region.roadChains;
-    const riverChains = region.riverChains;
     const hasContent =
-      roadChains.some((c) => c.length > 0) ||
-      riverChains.some((c) => c.length > 0) ||
-      this.activeRoadEnd !== null ||
-      this.activeRiverEnd !== null;
+      region.pathChains.some((c) => c.hexes.length > 0) ||
+      this.activePathEnd !== null;
     if (!hasContent) return;
 
     // Build hex center map — offsetLeft/offsetTop are unaffected by CSS transform
@@ -1852,7 +1851,7 @@ export class HexMapView extends ItemView {
 
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
-    svg.classList.add("duckmage-road-river-svg");
+    svg.classList.add("duckmage-path-svg");
     const w = gridContainer.offsetLeft + gridContainer.offsetWidth + 20;
     const h = gridContainer.offsetTop + gridContainer.offsetHeight + 20;
     svg.setAttribute("width", String(w));
@@ -1878,10 +1877,13 @@ export class HexMapView extends ItemView {
       return d;
     };
 
+    const DASH_ARRAYS: Record<string, string> = { solid: "", dashed: "8 4", dotted: "2 4" };
+
     const appendPath = (
       pts: { cx: number; cy: number }[],
       color: string,
       strokeWidth: number,
+      dashArray = "",
     ) => {
       const path = document.createElementNS(svgNS, "path");
       path.setAttribute("d", smoothPath(pts));
@@ -1890,73 +1892,51 @@ export class HexMapView extends ItemView {
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
       path.setAttribute("fill", "none");
+      if (dashArray) path.setAttribute("stroke-dasharray", dashArray);
       svg.appendChild(path);
     };
 
-    // Roads: each chain draws fully — crossings are fine.
-    const drawChains = (
-      chains: string[][],
-      color: string,
-      strokeWidth: number,
-    ) => {
-      for (const chain of chains) {
-        const pts = chain
-          .map((k) => centerMap.get(k))
-          .filter((p): p is { cx: number; cy: number } => !!p);
-        if (pts.length >= 2) appendPath(pts, color, strokeWidth);
+    // "between" routing: trace edge midpoints between consecutive hex centers
+    const buildBetweenPts = (hexes: string[]): { cx: number; cy: number }[] => {
+      const centers = hexes.map(k => centerMap.get(k)).filter((p): p is { cx: number; cy: number } => !!p);
+      if (centers.length < 3) return centers; // fallback to through for short chains
+      const pts: { cx: number; cy: number }[] = [];
+      for (let i = 0; i < centers.length - 1; i++)
+        pts.push({ cx: (centers[i].cx + centers[i + 1].cx) / 2, cy: (centers[i].cy + centers[i + 1].cy) / 2 });
+      return pts;
+    };
+
+    // Draw all path types in definition order
+    for (const pt of this.plugin.settings.pathTypes) {
+      const typeChains = region.pathChains.filter(c => c.typeName === pt.name);
+      const dash = DASH_ARRAYS[pt.lineStyle] ?? "";
+      for (const chain of typeChains) {
+        const pts = pt.routing === "between"
+          ? buildBetweenPts(chain.hexes)
+          : chain.hexes.map(k => centerMap.get(k)).filter((p): p is { cx: number; cy: number } => !!p);
+        if (pts.length >= 2) appendPath(pts, pt.color, pt.width, dash);
       }
-    };
+    }
 
-    // Rivers: draw each chain, truncating where it meets an already-drawn
-    // chain (tributary merges into main river). Chains that begin at an
-    // already-drawn hex are drawn from the last contiguous drawn hex
-    // outward, so a branch that starts mid-river still renders correctly.
-    const drawRiverChains = (
-      chains: string[][],
-      color: string,
-      strokeWidth: number,
-    ) => {
-      const drawn = new Set<string>();
-      for (const chain of chains) {
-        // Skip leading hexes that are already drawn by a prior chain,
-        // backing up one so the first segment connects at the junction.
-        let start = 0;
-        while (start < chain.length - 1 && drawn.has(chain[start])) start++;
-        const drawStart = Math.max(0, start - 1);
-
-        // Always render to the end — never cut off at interior intersections.
-        const pts = chain
-          .slice(drawStart)
-          .map((k) => centerMap.get(k))
-          .filter((p): p is { cx: number; cy: number } => !!p);
-        if (pts.length >= 2) appendPath(pts, color, strokeWidth);
-        for (const key of chain) drawn.add(key);
+    // Small circle to mark the active endpoint (only visible in path mode)
+    if (this.drawingMode === "path" && this.activePathEnd) {
+      const activeType = this.activePathTypeName
+        ? this.plugin.settings.pathTypes.find(p => p.name === this.activePathTypeName)
+        : undefined;
+      const color = activeType?.color ?? "#888888";
+      const pos = centerMap.get(this.activePathEnd);
+      if (pos) {
+        const circle = document.createElementNS(svgNS, "circle");
+        circle.setAttribute("cx", String(pos.cx));
+        circle.setAttribute("cy", String(pos.cy));
+        circle.setAttribute("r", "5");
+        circle.setAttribute("fill", color);
+        circle.setAttribute("stroke", "white");
+        circle.setAttribute("stroke-width", "1.5");
+        circle.setAttribute("opacity", "0.9");
+        svg.appendChild(circle);
       }
-    };
-
-    // Small circle to mark the active endpoint (only visible in drawing mode)
-    const drawActiveEndMarker = (activeEnd: string | null, color: string) => {
-      if (!activeEnd) return;
-      const pos = centerMap.get(activeEnd);
-      if (!pos) return;
-      const circle = document.createElementNS(svgNS, "circle");
-      circle.setAttribute("cx", String(pos.cx));
-      circle.setAttribute("cy", String(pos.cy));
-      circle.setAttribute("r", "5");
-      circle.setAttribute("fill", color);
-      circle.setAttribute("stroke", "white");
-      circle.setAttribute("stroke-width", "1.5");
-      circle.setAttribute("opacity", "0.9");
-      svg.appendChild(circle);
-    };
-
-    drawRiverChains(riverChains, this.plugin.settings.riverColor, 3);
-    drawChains(roadChains, this.plugin.settings.roadColor, 4);
-
-    if (this.drawingMode === "road")
-      drawActiveEndMarker(this.activeRoadEnd, this.plugin.settings.roadColor);
-    if (this.drawingMode === "river")
-      drawActiveEndMarker(this.activeRiverEnd, this.plugin.settings.riverColor);
+    }
 
     // Elevate override icons above roads/rivers by rendering them inside the SVG.
     gridContainer
@@ -2019,7 +1999,7 @@ export class HexMapView extends ItemView {
     this.viewportEl?.appendChild(svg);
   }
 
-  private updateRoadRiverOverlay(): void {
+  private updatePathOverlay(): void {
     const gridContainer = this.viewportEl?.querySelector<HTMLElement>(
       ".duckmage-hex-map-grid",
     );
@@ -2027,7 +2007,7 @@ export class HexMapView extends ItemView {
       this.renderGrid();
       return;
     }
-    this.renderRoadRiverOverlay(gridContainer);
+    this.renderPathOverlay(gridContainer);
   }
 }
 

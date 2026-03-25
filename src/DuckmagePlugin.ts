@@ -3,7 +3,7 @@ import { HexMapView } from "./hex-map/HexMapView";
 import { HexTableView } from "./hex-table/HexTableView";
 import { RandomTableView } from "./random-tables/RandomTableView";
 import { DuckmageSettingTab } from "./DuckmageSettingTab";
-import { DEFAULT_PALETTE_NAME, DEFAULT_SETTINGS, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
+import { DEFAULT_PALETTE_NAME, DEFAULT_PATH_TYPES, DEFAULT_SETTINGS, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
 import { BUNDLED_ICONS } from "./bundledIcons";
 import { parseWorkflow, buildWorkflowContent } from "./random-tables/workflow";
@@ -147,31 +147,52 @@ export default class DuckmagePlugin extends Plugin {
 		// Deep-clone the regions array so mutations to settings.regions never alias DEFAULT_SETTINGS.regions.
 		// Object.assign does a shallow copy, so on first run (data===null) settings.regions IS
 		// DEFAULT_SETTINGS.regions – pushing/mutating it would corrupt the constant for the session.
-		this.settings.regions = (Array.isArray(this.settings.regions) ? this.settings.regions : []).map(r => ({
-			name: r.name,
-			paletteName: r.paletteName ?? DEFAULT_PALETTE_NAME,
-			gridSize:   r.gridSize   ? { cols: r.gridSize.cols,   rows: r.gridSize.rows }   : { cols: 20, rows: 16 },
-			gridOffset: r.gridOffset ? { x: r.gridOffset.x,       y: r.gridOffset.y }       : { x: 0,    y: 0 },
-			roadChains:  Array.isArray(r.roadChains)  ? r.roadChains.map((c: string[])  => [...c]) : [],
-			riverChains: Array.isArray(r.riverChains) ? r.riverChains.map((c: string[]) => [...c]) : [],
-		}));
+		this.settings.regions = (Array.isArray(this.settings.regions) ? this.settings.regions : []).map(r => {
+			const raw = r as unknown as Record<string, unknown>;
+			// Migrate roadChains/riverChains → pathChains
+			let pathChains = Array.isArray(r.pathChains) ? r.pathChains.map((c: { typeName: string; hexes: string[] }) => ({ typeName: c.typeName, hexes: [...c.hexes] })) : [];
+			if (pathChains.length === 0) {
+				for (const c of Array.isArray(raw.roadChains)  ? raw.roadChains  as string[][] : [])
+					pathChains.push({ typeName: "Road",  hexes: [...c] });
+				for (const c of Array.isArray(raw.riverChains) ? raw.riverChains as string[][] : [])
+					pathChains.push({ typeName: "River", hexes: [...c] });
+			}
+			return {
+				name: r.name,
+				paletteName: r.paletteName ?? DEFAULT_PALETTE_NAME,
+				gridSize:   r.gridSize   ? { cols: r.gridSize.cols,   rows: r.gridSize.rows }   : { cols: 20, rows: 16 },
+				gridOffset: r.gridOffset ? { x: r.gridOffset.x,       y: r.gridOffset.y }       : { x: 0,    y: 0 },
+				pathChains,
+			};
+		});
 		// Migrate legacy flat gridSize/gridOffset/roadChains/riverChains into regions array
 		const legacyData = data as Record<string, unknown>;
 		if (!Array.isArray(this.settings.regions) || this.settings.regions.length === 0) {
+			const legacyPathChains: { typeName: string; hexes: string[] }[] = [];
+			for (const c of Array.isArray(legacyData.roadChains)  ? legacyData.roadChains  as string[][] : [])
+				legacyPathChains.push({ typeName: "Road",  hexes: [...c] });
+			for (const c of Array.isArray(legacyData.riverChains) ? legacyData.riverChains as string[][] : [])
+				legacyPathChains.push({ typeName: "River", hexes: [...c] });
 			this.settings.regions = [{
 				name: "default",
 				paletteName: DEFAULT_PALETTE_NAME,
 				gridSize:   (legacyData.gridSize   as { cols: number; rows: number }) ?? { cols: 20, rows: 16 },
 				gridOffset: (legacyData.gridOffset as { x: number; y: number })       ?? { x: 0, y: 0 },
-				roadChains:  Array.isArray(legacyData.roadChains)  ? legacyData.roadChains  as string[][] : [],
-				riverChains: Array.isArray(legacyData.riverChains) ? legacyData.riverChains as string[][] : [],
+				pathChains: legacyPathChains,
 			}];
 		}
 		for (const r of this.settings.regions) {
 			if (!r.paletteName) r.paletteName = DEFAULT_PALETTE_NAME;
 			if (!r.gridOffset) r.gridOffset = { x: 0, y: 0 };
-			if (!Array.isArray(r.roadChains))  r.roadChains  = [];
-			if (!Array.isArray(r.riverChains)) r.riverChains = [];
+			if (!Array.isArray(r.pathChains)) r.pathChains = [];
+		}
+		// Migrate roadColor/riverColor → pathTypes
+		if (!Array.isArray(this.settings.pathTypes) || this.settings.pathTypes.length === 0) {
+			this.settings.pathTypes = DEFAULT_PATH_TYPES.map(p => ({ ...p }));
+			const road  = this.settings.pathTypes.find(p => p.name === "Road");
+			const river = this.settings.pathTypes.find(p => p.name === "River");
+			if (road  && anyData.roadColor  as string) road.color  = anyData.roadColor  as string;
+			if (river && anyData.riverColor as string) river.color = anyData.riverColor as string;
 		}
 		// Ensure terrainPalettes is valid
 		if (!Array.isArray(this.settings.terrainPalettes) || this.settings.terrainPalettes.length === 0) {
@@ -180,8 +201,6 @@ export default class DuckmagePlugin extends Plugin {
 				terrains: p.terrains.map(t => ({ ...t })),
 			}));
 		}
-		if (!this.settings.roadColor)  this.settings.roadColor  = "#a16207";
-		if (!this.settings.riverColor) this.settings.riverColor = "#3b82f6";
 		if (!this.settings.hexOrientation) this.settings.hexOrientation = "pointy";
 		if (!this.settings.tablesFolder) this.settings.tablesFolder = "world/tables";
 		if (!this.settings.defaultTableDice) this.settings.defaultTableDice = 100;
@@ -613,7 +632,7 @@ export default class DuckmagePlugin extends Plugin {
 	getOrCreateRegion(name: string): RegionData {
 		let r = this.getRegion(name);
 		if (!r) {
-			r = { name, paletteName: DEFAULT_PALETTE_NAME, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [] };
+			r = { name, paletteName: DEFAULT_PALETTE_NAME, gridSize: { cols: 20, rows: 16 }, gridOffset: { x: 0, y: 0 }, pathChains: [] };
 			this.settings.regions.push(r);
 		}
 		return r;

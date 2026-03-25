@@ -312,29 +312,18 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		containerEl.createEl("h3", { text: "Roads & rivers" });
-		new Setting(containerEl)
-			.setName("Road color")
-			.setDesc("Color used to draw road lines between connected road hexes.")
-			.addColorPicker(color =>
-				color
-					.setValue(this.plugin.settings.roadColor ?? "#a16207")
-					.onChange(async value => {
-						this.plugin.settings.roadColor = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-		new Setting(containerEl)
-			.setName("River color")
-			.setDesc("Color used to draw river lines between connected river hexes.")
-			.addColorPicker(color =>
-				color
-					.setValue(this.plugin.settings.riverColor ?? "#3b82f6")
-					.onChange(async value => {
-						this.plugin.settings.riverColor = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		containerEl.createEl("h3", { text: "Path types" });
+		containerEl.createEl("p", {
+			text: "Path types define the available drawing tools (roads, rivers, etc.). Edit them from the Path tool on the hex map.",
+			cls: "setting-item-description",
+		});
+		const pathList = containerEl.createDiv({ cls: "duckmage-path-type-list" });
+		for (const pt of this.plugin.settings.pathTypes) {
+			const row = pathList.createDiv({ cls: "duckmage-path-type-row" });
+			const swatch = row.createSpan({ cls: "duckmage-path-type-swatch" });
+			swatch.style.backgroundColor = pt.color;
+			row.createSpan({ text: `${pt.name}  (${pt.width}px, ${pt.lineStyle}, ${pt.routing})` });
+		}
 
 		containerEl.createEl("h3", { text: "Terrain palettes" });
 		containerEl.createEl("p", {

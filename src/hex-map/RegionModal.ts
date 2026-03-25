@@ -136,7 +136,7 @@ export class RegionModal extends DuckmageModal {
 			try { await this.app.vault.createFolder(folderPath); } catch { /* exists */ }
 		}
 		this.plugin.settings.regions.push({
-			name, paletteName, gridSize: { cols, rows }, gridOffset: { x: 0, y: 0 }, roadChains: [], riverChains: [],
+			name, paletteName, gridSize: { cols, rows }, gridOffset: { x: 0, y: 0 }, pathChains: [],
 		});
 		this.view.activeRegionName = name;
 		await this.plugin.saveSettings();

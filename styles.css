@@ -906,6 +906,40 @@ div.duckmage-terrain-preview-icon {
     border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
+.duckmage-path-btn-swatch {
+    display: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    margin-left: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.duckmage-path-preview {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.duckmage-path-editor-preview {
+    margin: 0 auto 12px;
+    width: 72px;
+    height: 72px;
+}
+
+.duckmage-path-editor-preview svg {
+    width: 100%;
+    height: 100%;
+}
+
+.duckmage-path-type-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.duckmage-path-type-row  { display: flex; align-items: center; gap: 8px; font-size: 0.85em; }
+.duckmage-path-type-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
 .duckmage-tpe-brush-row {
     display: flex;
     align-items: center;

@@ -1,4 +1,4 @@
-import type { TerrainColor, DuckmagePluginSettings } from "./types";
+import type { TerrainColor, DuckmagePluginSettings, PathType } from "./types";
 
 export const DEFAULT_PALETTE_NAME = "Default"; // kept for migration of legacy saves
 export const LIMITED_PALETTE_NAME = "Limited";
@@ -282,6 +282,11 @@ export const LIMITED_TERRAIN_PALETTE: TerrainColor[] = [
   { name: "snow",     color: "#e0f2fe",  category: "snow" },
 ];
 
+export const DEFAULT_PATH_TYPES: PathType[] = [
+  { name: "Road",  color: "#a16207", width: 4, lineStyle: "solid", routing: "through" },
+  { name: "River", color: "#3b82f6", width: 3, lineStyle: "solid", routing: "through" },
+];
+
 export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
   mySetting: "default",
   worldFolder: "world",
@@ -303,13 +308,11 @@ export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
       paletteName: LIMITED_PALETTE_NAME,
       gridSize: { cols: 20, rows: 16 },
       gridOffset: { x: 0, y: 0 },
-      roadChains: [],
-      riverChains: [],
+      pathChains: [],
     },
   ],
   zoomLevel: 1,
-  roadColor: "#a16207",
-  riverColor: "#3b82f6",
+  pathTypes: DEFAULT_PATH_TYPES,
   hexOrientation: "flat",
   tablesFolder: "world/tables",
   factionsFolder: "",

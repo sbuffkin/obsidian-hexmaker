@@ -1,10 +1,25 @@
+export type PathLineStyle = "solid" | "dashed" | "dotted";
+export type PathRouting   = "through" | "between";
+
+export interface PathType {
+	name: string;
+	color: string;
+	width: number;            // 1–10, direct SVG stroke-width
+	lineStyle: PathLineStyle;
+	routing: PathRouting;     // "through" = hex centers; "between" = edge midpoints
+}
+
+export interface PathChain {
+	typeName: string;         // references PathType.name
+	hexes: string[];          // "x_y" keys
+}
+
 export interface RegionData {
 	name: string;
 	paletteName: string;
 	gridSize: { cols: number; rows: number };
 	gridOffset: { x: number; y: number };
-	roadChains: string[][];
-	riverChains: string[][];
+	pathChains: PathChain[];
 }
 
 export interface TerrainPalette {
@@ -34,8 +49,7 @@ export interface DuckmagePluginSettings {
 	terrainPalettes: TerrainPalette[];
 	regions: RegionData[];
 	zoomLevel: number;
-	roadColor: string;
-	riverColor: string;
+	pathTypes: PathType[];
 	hexOrientation: "pointy" | "flat";
 	tablesFolder: string;
 	factionsFolder: string;
