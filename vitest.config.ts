@@ -4,6 +4,7 @@ import { resolve } from "path";
 export default defineConfig({
 	test: {
 		environment: "node",
+		exclude: ["**/node_modules/**", ".claude/**"],
 	},
 	resolve: {
 		alias: {
