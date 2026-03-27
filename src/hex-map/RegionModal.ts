@@ -1,13 +1,13 @@
 import { App, Notice, TFolder } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import type { HexMapView } from "./HexMapView";
 import { normalizeFolder } from "../utils";
 
-export class RegionModal extends DuckmageModal {
+export class RegionModal extends HexmakerModal {
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private view: HexMapView,
 		private onChanged: () => void,
 	) { super(app); }
@@ -151,7 +151,7 @@ export class RegionModal extends DuckmageModal {
 			btn.setText(`Generating ${done} / ${total}…`);
 		});
 		created = created_;
-		if (created > 0) new Notice(`Duckmage: generated ${created} hex note${created !== 1 ? "s" : ""} for "${name}".`);
+		if (created > 0) new Notice(`Hexmaker: generated ${created} hex note${created !== 1 ? "s" : ""} for "${name}".`);
 		this.close();
 	}
 

@@ -1,4 +1,4 @@
-import type { TerrainColor, DuckmagePluginSettings, PathType } from "./types";
+import type { TerrainColor, HexmakerPluginSettings, PathType } from "./types";
 
 export const DEFAULT_PALETTE_NAME = "Default"; // kept for migration of legacy saves
 export const LIMITED_PALETTE_NAME = "Limited";
@@ -287,7 +287,7 @@ export const DEFAULT_PATH_TYPES: PathType[] = [
   { name: "River", color: "#3b82f6", width: 3, lineStyle: "solid", routing: "meander" },
 ];
 
-export const DEFAULT_SETTINGS: DuckmagePluginSettings = {
+export const DEFAULT_SETTINGS: HexmakerPluginSettings = {
   mySetting: "default",
   worldFolder: "world",
   hexFolder: "world/hexes",

@@ -1,10 +1,10 @@
 import { App, Setting, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import type { TerrainColor } from "../types";
 import { normalizeFolder } from "../utils";
 
-export class TerrainEntryEditorModal extends DuckmageModal {
+export class TerrainEntryEditorModal extends HexmakerModal {
 	// Pending values — only written to the entry on Save
 	private pendingName: string;
 	private pendingColor: string;
@@ -17,7 +17,7 @@ export class TerrainEntryEditorModal extends DuckmageModal {
 
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private palette: TerrainColor[],
 		private entry: TerrainColor,
 		private onSave: () => void,

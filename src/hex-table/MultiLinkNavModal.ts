@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
+import { HexmakerModal } from "../HexmakerModal";
 
-export class MultiLinkNavModal extends DuckmageModal {
+export class MultiLinkNavModal extends HexmakerModal {
   constructor(
     app: App,
     private title: string,

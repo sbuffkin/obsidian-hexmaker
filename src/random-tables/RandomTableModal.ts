@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder } from "../utils";
 import { parseRandomTable, rollOnTable, getDieRanges } from "./randomTable";
 import { VIEW_TYPE_RANDOM_TABLES } from "../constants";
@@ -14,10 +14,10 @@ import { RandomTableEditorModal } from "./RandomTableEditorModal";
  * loaded immediately (used for terrain description tables via the 📖 button).
  * When `onInsert` is absent the result shows a Copy button instead of "Use result".
  */
-export class RandomTableModal extends DuckmageModal {
+export class RandomTableModal extends HexmakerModal {
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private onInsert?: (result: string) => void,
 		private initialFilePath?: string,
 	) {

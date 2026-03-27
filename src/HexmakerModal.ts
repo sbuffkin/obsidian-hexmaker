@@ -1,7 +1,7 @@
 import { App, Modal } from "obsidian";
 
-/** Base class for all Duckmage modals. Provides shared behaviour. */
-export class DuckmageModal extends Modal {
+/** Base class for all Hexmaker modals. Provides shared behaviour. */
+export class HexmakerModal extends Modal {
 	constructor(app: App) {
 		super(app);
 	}

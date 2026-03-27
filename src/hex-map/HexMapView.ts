@@ -9,7 +9,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import HELP_CONTENT from "./help.md";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder, getIconUrl, createIconEl } from "../utils";
 import {
   getTerrainFromFile,
@@ -37,7 +37,7 @@ type UndoItem =
   | { kind: "path"; regionName: string; before: PathChain[]; after: PathChain[] };
 
 export class HexMapView extends ItemView {
-  plugin: DuckmagePlugin;
+  plugin: HexmakerPlugin;
   private zoom = 1;
   private panX = 0;
   private panY = 0;
@@ -97,7 +97,7 @@ export class HexMapView extends ItemView {
   activeRegionName = "default";
   private regionBtn: HTMLButtonElement | null = null;
 
-  constructor(leaf: WorkspaceLeaf, plugin: DuckmagePlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: HexmakerPlugin) {
     super(leaf);
     this.plugin = plugin;
   }
@@ -1546,10 +1546,7 @@ export class HexMapView extends ItemView {
               setTimeout(r, Math.min(200 * (1 << (attempt - 1)), 2000)),
             );
           try {
-            // Use adapter.exists to verify the file is actually on disk —
-            // getAbstractFileByPath only checks vault's in-memory index and
-            // can lag behind the real filesystem on Windows.
-            const onDisk = await this.app.vault.adapter.exists(path);
+            const onDisk = !!this.app.vault.getAbstractFileByPath(path);
             if (terrain === null) {
               if (onDisk) {
                 await setTerrainInFile(this.app, path, null);
@@ -1616,7 +1613,7 @@ export class HexMapView extends ItemView {
               setTimeout(r, Math.min(200 * (1 << (attempt - 1)), 2000)),
             );
           try {
-            const onDisk = await this.app.vault.adapter.exists(path);
+            const onDisk = !!this.app.vault.getAbstractFileByPath(path);
             if (icon === null) {
               if (onDisk)
                 await setIconOverrideInFile(this.app, path, null);
@@ -2239,12 +2236,12 @@ class TablePickerModal extends Modal {
   private filterQuery = "";
   private collapsedFolders: Set<string> = new Set();
   private listEl: HTMLElement | null = null;
-  private plugin: DuckmagePlugin;
+  private plugin: HexmakerPlugin;
   private onChoose: (file: TFile) => void;
 
   constructor(
     app: App,
-    plugin: DuckmagePlugin,
+    plugin: HexmakerPlugin,
     onChoose: (file: TFile) => void,
   ) {
     super(app);
@@ -2405,12 +2402,12 @@ class FactionPickerModal extends Modal {
   private filterQuery = "";
   private collapsedFolders: Set<string> = new Set();
   private listEl: HTMLElement | null = null;
-  private plugin: DuckmagePlugin;
+  private plugin: HexmakerPlugin;
   private onChoose: (file: TFile) => void;
 
   constructor(
     app: App,
-    plugin: DuckmagePlugin,
+    plugin: HexmakerPlugin,
     onChoose: (file: TFile) => void,
   ) {
     super(app);

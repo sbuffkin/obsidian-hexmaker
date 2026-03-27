@@ -2,18 +2,18 @@ import { Notice, Plugin, TAbstractFile, TFile, TFolder } from "obsidian";
 import { HexMapView } from "./hex-map/HexMapView";
 import { HexTableView } from "./hex-table/HexTableView";
 import { RandomTableView } from "./random-tables/RandomTableView";
-import { DuckmageSettingTab } from "./DuckmageSettingTab";
+import { HexmakerSettingTab } from "./HexmakerSettingTab";
 import { DEFAULT_PALETTE_NAME, DEFAULT_PATH_TYPES, DEFAULT_SETTINGS, VIEW_TYPE_HEX_MAP, VIEW_TYPE_HEX_TABLE, VIEW_TYPE_RANDOM_TABLES } from "./constants";
 import { normalizeFolder, makeTableTemplate } from "./utils";
 import { BUNDLED_ICONS } from "./bundledIcons";
 import { parseWorkflow, buildWorkflowContent } from "./random-tables/workflow";
-import type { DuckmagePluginSettings, RegionData, TerrainColor, TerrainPalette } from "./types";
+import type { HexmakerPluginSettings, RegionData, TerrainColor, TerrainPalette } from "./types";
 import DEFAULT_HEX_TEMPLATE from "./defaultHexTemplate.md";
 import { getTerrainFromFile, setTerrainInFile } from "./frontmatter";
 import { addLinkToSection, getLinksInSection, removeLinkFromSection } from "./sections";
 
-export default class DuckmagePlugin extends Plugin {
-	settings: DuckmagePluginSettings;
+export default class HexmakerPlugin extends Plugin {
+	settings: HexmakerPluginSettings;
 	availableIcons: string[] = [];
 	vaultIconsSet: Set<string> = new Set();
 
@@ -41,7 +41,7 @@ export default class DuckmagePlugin extends Plugin {
 			name: "Open random tables",
 			callback: () => this.app.workspace.getLeaf().setViewState({ type: VIEW_TYPE_RANDOM_TABLES }),
 		});
-		this.addSettingTab(new DuckmageSettingTab(this.app, this));
+		this.addSettingTab(new HexmakerSettingTab(this.app, this));
 
 		this.registerObsidianProtocolHandler("duckmage-roll", (params) => {
 			const filePath = params["file"];
@@ -118,12 +118,13 @@ export default class DuckmagePlugin extends Plugin {
 				);
 
 				for (const wfFile of workflowFiles) {
-					const content = await this.app.vault.read(wfFile);
-					const workflow = parseWorkflow(content, wfFile.basename);
-					const filtered = workflow.steps.filter(s => s.tablePath !== deletedTablePath);
-					if (filtered.length === workflow.steps.length) continue;
-					workflow.steps = filtered;
-					await this.app.vault.modify(wfFile, buildWorkflowContent(workflow));
+					await this.app.vault.process(wfFile, (content) => {
+						const workflow = parseWorkflow(content, wfFile.basename);
+						const filtered = workflow.steps.filter(s => s.tablePath !== deletedTablePath);
+						if (filtered.length === workflow.steps.length) return content;
+						workflow.steps = filtered;
+						return buildWorkflowContent(workflow);
+					});
 				}
 			}),
 		);
@@ -262,16 +263,15 @@ export default class DuckmagePlugin extends Plugin {
 
 		const iconsFolder = normalizeFolder(this.settings.iconsFolder ?? "");
 		if (iconsFolder) {
-			try {
-				const result = await this.app.vault.adapter.list(iconsFolder);
-				for (const f of result.files) {
-					if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(f)) {
-						const name = f.split("/").pop() as string;
-						this.vaultIconsSet.add(name);
-						vaultIcons.push(name);
+			const folder = this.app.vault.getAbstractFileByPath(iconsFolder);
+			if (folder instanceof TFolder) {
+				for (const child of folder.children) {
+					if (child instanceof TFile && /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(child.name)) {
+						this.vaultIconsSet.add(child.name);
+						vaultIcons.push(child.name);
 					}
 				}
-			} catch {}
+			}
 		}
 
 		// Combine both sources, deduplicate by filename, sorted
@@ -287,20 +287,20 @@ export default class DuckmagePlugin extends Plugin {
 	buildRollerLink(filePath: string): string {
 		const vault = encodeURIComponent(this.app.vault.getName());
 		const file = encodeURIComponent(filePath);
-		return `[🎲 Open in Duckmage Roller](obsidian://duckmage-roll?vault=${vault}&file=${file})`;
+		return `[🎲 Open in Hexmaker Roller](obsidian://duckmage-roll?vault=${vault}&file=${file})`;
 	}
 
 	/** Add a roller link to a table file if it doesn't already have one. */
 	async ensureRollerLink(filePath: string): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		if (!(file instanceof TFile)) return;
-		const content = await this.app.vault.read(file);
-		if (content.includes("obsidian://duckmage-roll")) return;
-		const fmMatch = content.match(/^---\n[\s\S]*?\n---\n/);
-		const insertAt = fmMatch ? fmMatch[0].length : 0;
 		const link = this.buildRollerLink(filePath);
-		const newContent = content.slice(0, insertAt) + "\n" + link + "\n\n" + content.slice(insertAt);
-		await this.app.vault.modify(file, newContent);
+		await this.app.vault.process(file, (content) => {
+			if (content.includes("obsidian://duckmage-roll")) return content;
+			const fmMatch = content.match(/^---\n[\s\S]*?\n---\n/);
+			const insertAt = fmMatch ? fmMatch[0].length : 0;
+			return content.slice(0, insertAt) + "\n" + link + "\n\n" + content.slice(insertAt);
+		});
 	}
 
 	/** Add roller links to all existing table files in the tables folder that don't have one. */
@@ -312,16 +312,18 @@ export default class DuckmagePlugin extends Plugin {
 
 		let count = 0;
 		for (const file of files) {
-			const content = await this.app.vault.read(file);
-			if (content.includes("obsidian://duckmage-roll")) continue;
-			const fmMatch = content.match(/^---\n[\s\S]*?\n---\n/);
-			const insertAt = fmMatch ? fmMatch[0].length : 0;
+			let added = false;
 			const link = this.buildRollerLink(file.path);
-			const newContent = content.slice(0, insertAt) + "\n" + link + "\n\n" + content.slice(insertAt);
-			await this.app.vault.modify(file, newContent);
-			count++;
+			await this.app.vault.process(file, (content) => {
+				if (content.includes("obsidian://duckmage-roll")) return content;
+				added = true;
+				const fmMatch = content.match(/^---\n[\s\S]*?\n---\n/);
+				const insertAt = fmMatch ? fmMatch[0].length : 0;
+				return content.slice(0, insertAt) + "\n" + link + "\n\n" + content.slice(insertAt);
+			});
+			if (added) count++;
 		}
-		new Notice(`Duckmage: added roller links to ${count} table${count !== 1 ? "s" : ""}.`);
+		new Notice(`Hexmaker: added roller links to ${count} table${count !== 1 ? "s" : ""}.`);
 	}
 
 	/** Create missing description/encounters table files for every terrain type in the palette. */
@@ -416,7 +418,7 @@ export default class DuckmagePlugin extends Plugin {
 			await addLinkToSection(this.app, file.path, "Encounters Table", linkText);
 			linked++;
 		}
-		new Notice(`Duckmage: linked encounters tables for ${linked} hex${linked !== 1 ? "es" : ""}.`);
+		new Notice(`Hexmaker: linked encounters tables for ${linked} hex${linked !== 1 ? "es" : ""}.`);
 	}
 
 	/**
@@ -461,7 +463,7 @@ export default class DuckmagePlugin extends Plugin {
 			const terrain = getTerrainFromFile(this.app, file.path) ?? null;
 			await this.syncHexEncounterTableLink(file.path, terrain);
 		}
-		new Notice(`Duckmage: refreshed encounter links for ${hexFiles.length} hex${hexFiles.length !== 1 ? "es" : ""}.`);
+		new Notice(`Hexmaker: refreshed encounter links for ${hexFiles.length} hex${hexFiles.length !== 1 ? "es" : ""}.`);
 	}
 
 	/** Update every hex note whose terrain matches oldName to newName.
@@ -513,7 +515,7 @@ export default class DuckmagePlugin extends Plugin {
 		if (preloadedTemplate !== undefined) {
 			content = preloadedTemplate;
 		} else {
-			const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
+			const templatePath = normalizeFolder(this.settings.templatePath ?? "");
 			if (templatePath) {
 				const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
 				if (!(templateFile instanceof TFile)) {
@@ -557,7 +559,7 @@ export default class DuckmagePlugin extends Plugin {
 
 	/** Read the hex template once (used by bulk generation to avoid N redundant reads). */
 	private async loadHexTemplate(): Promise<string | null> {
-		const templatePath = (this.settings.templatePath ?? "").replace(/^\/+|\/+$/g, "");
+		const templatePath = normalizeFolder(this.settings.templatePath ?? "");
 		if (templatePath) {
 			const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
 			if (!(templateFile instanceof TFile)) {
@@ -596,7 +598,7 @@ export default class DuckmagePlugin extends Plugin {
 		for (let i = 0; i < pairs.length; i += CHUNK) {
 			await Promise.all(pairs.slice(i, i + CHUNK).map(async ([x, y]) => {
 				const path = this.hexPath(x, y, regionName);
-				if (!(await this.app.vault.adapter.exists(path))) {
+				if (!this.app.vault.getAbstractFileByPath(path)) {
 					const result = await this.createHexNote(x, y, regionName, template);
 					if (result) created++;
 				}
@@ -660,6 +662,6 @@ export default class DuckmagePlugin extends Plugin {
 				try { await this.app.fileManager.renameFile(file, newPath); moved++; } catch { /* skip */ }
 			}
 		}
-		if (moved > 0) new Notice(`Duckmage: migrated ${moved} hex file(s) to "default" region.`);
+		if (moved > 0) new Notice(`Hexmaker: migrated ${moved} hex file(s) to "default" region.`);
 	}
 }

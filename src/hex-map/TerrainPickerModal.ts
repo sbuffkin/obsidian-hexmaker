@@ -1,11 +1,11 @@
 import { App } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import type { TerrainColor } from "../types";
 import { getIconUrl, createIconEl } from "../utils";
 import { TerrainEntryEditorModal } from "./TerrainEntryEditorModal";
 
-export class TerrainPickerModal extends DuckmageModal {
+export class TerrainPickerModal extends HexmakerModal {
   private editMode = false;
   private editChanged = false;
   private selectionMade = false;
@@ -13,7 +13,7 @@ export class TerrainPickerModal extends DuckmageModal {
 
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private palette: TerrainColor[],
     private onSelect: (terrainName: string | null) => void,
     private onPickMode?: () => void,
@@ -278,10 +278,10 @@ export class TerrainPickerModal extends DuckmageModal {
 }
 
 /** Shown when the user clicks "+" — lets them pick a terrain from another palette as a template. */
-class TerrainTemplatePickerModal extends DuckmageModal {
+class TerrainTemplatePickerModal extends HexmakerModal {
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private currentPalette: TerrainColor[],
     private onPick: (template: TerrainColor | null) => void,
   ) {

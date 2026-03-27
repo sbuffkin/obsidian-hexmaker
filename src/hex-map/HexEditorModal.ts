@@ -1,6 +1,6 @@
 import { App, Notice, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { getIconUrl, normalizeFolder, makeTableTemplate, createIconEl } from "../utils";
 import {
   getTerrainFromFile,
@@ -21,7 +21,7 @@ import type { LinkSection } from "../types";
 import { RandomTableModal } from "../random-tables/RandomTableModal";
 import { VIEW_TYPE_HEX_MAP, VIEW_TYPE_RANDOM_TABLES } from "../constants";
 
-export class HexEditorModal extends DuckmageModal {
+export class HexEditorModal extends HexmakerModal {
   private hexExists = false;
   private allText = new Map<string, string>();
   private allLinks = new Map<string, string[]>();
@@ -30,7 +30,7 @@ export class HexEditorModal extends DuckmageModal {
 
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private x: number,
     private y: number,
     private regionName: string,
@@ -686,9 +686,7 @@ export class HexEditorModal extends DuckmageModal {
     });
 
     // 📖 button: terrain description table (description section) or section-specific table
-    const tablesFolder = this.plugin.settings.tablesFolder
-      ? this.plugin.settings.tablesFolder.replace(/^\/+|\/+$/g, "")
-      : "";
+    const tablesFolder = normalizeFolder(this.plugin.settings.tablesFolder ?? "");
     let previewTablePath: string | null = null;
     let previewTitle = "";
 

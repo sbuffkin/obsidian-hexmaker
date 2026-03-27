@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
+import { TFile } from "obsidian";
 import { normalizeFolder, makeTableTemplate, getIconUrl } from "../src/utils";
-import type DuckmagePlugin from "../src/DuckmagePlugin";
+import type HexmakerPlugin from "../src/HexmakerPlugin";
 
 // ── normalizeFolder ───────────────────────────────────────────────────────────
 
@@ -100,18 +101,31 @@ function makePluginForIcon(
   vaultIcons: string[],
   iconsFolder: string,
   manifestDir: string,
-): { plugin: DuckmagePlugin; getLastPath: () => string } {
+): { plugin: HexmakerPlugin; getLastPath: () => string } {
   let lastPath = "";
-  const getResourcePath = vi.fn((p: string) => {
-    lastPath = p;
-    return `resource://${p}`;
-  });
+  const vaultIconSet = new Set(vaultIcons);
   const plugin = {
-    vaultIconsSet: new Set(vaultIcons),
+    vaultIconsSet: vaultIconSet,
     settings: { iconsFolder },
     manifest: { dir: manifestDir },
-    app: { vault: { adapter: { getResourcePath } } },
-  } as unknown as DuckmagePlugin;
+    app: {
+      vault: {
+        adapter: {
+          getResourcePath: vi.fn((p: string) => { lastPath = p; return `resource://${p}`; }),
+        },
+        getAbstractFileByPath: vi.fn((path: string) => {
+          const filename = path.split("/").pop() ?? "";
+          if (vaultIconSet.has(filename)) {
+            const f = Object.create(TFile.prototype) as TFile;
+            f.path = path;
+            return f;
+          }
+          return null;
+        }),
+        getResourcePath: vi.fn((f: TFile) => { lastPath = f.path; return `resource://${f.path}`; }),
+      },
+    },
+  } as unknown as HexmakerPlugin;
   return { plugin, getLastPath: () => lastPath };
 }
 

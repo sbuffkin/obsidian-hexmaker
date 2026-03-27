@@ -1,6 +1,6 @@
 import { App } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import type { PathType } from "../types";
 import { PathTypeEditorModal } from "./PathTypeEditorModal";
 
@@ -63,14 +63,14 @@ export function buildPathPreviewSvg(pt: PathType): SVGElement {
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
-export class PathPickerModal extends DuckmageModal {
+export class PathPickerModal extends HexmakerModal {
   private editMode = false;
   private editChanged = false;
   private selectionMade = false;
 
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private currentTypeName: string | null,
     private onSelect: (typeName: string) => void,
     private onDismiss?: () => void,

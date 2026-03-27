@@ -12,8 +12,22 @@ function makeApp(filePath: string, initialContent: string) {
 	const app = {
 		vault: {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
-			read: vi.fn(async () => stored),
-			modify: vi.fn(async (_f: unknown, content: string) => { stored = content; }),
+		},
+		fileManager: {
+			processFrontMatter: vi.fn(async (_f: unknown, fn: (fm: Record<string, unknown>) => void) => {
+				const fmMatch = stored.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+				const fm: Record<string, unknown> = {};
+				if (fmMatch) {
+					for (const line of fmMatch[1].split("\n")) {
+						const m = line.match(/^([\w-]+):\s*(.+)$/);
+						if (m) fm[m[1]] = m[2].trim();
+					}
+				}
+				const rest = fmMatch ? stored.slice(fmMatch[0].length) : stored;
+				fn(fm);
+				const fmLines = Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join("\n");
+				stored = fmLines ? `---\n${fmLines}\n---\n${rest}` : rest;
+			}),
 		},
 		metadataCache: {
 			getFileCache: vi.fn(() => null),

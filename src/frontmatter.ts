@@ -11,27 +11,13 @@ export function getTerrainFromFile(app: App, path: string): string | null {
 export async function setTerrainInFile(app: App, path: string, terrainKey: string | null): Promise<boolean> {
 	const file = app.vault.getAbstractFileByPath(path);
 	if (!(file instanceof TFile)) return false;
-	const content = await app.vault.read(file);
-	const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-	let newContent: string;
-	if (fmMatch) {
-		const fmBlock = fmMatch[1];
-		const rest = content.slice(fmMatch[0].length);
-		let newFm: string;
+	await app.fileManager.processFrontMatter(file, (fm) => {
 		if (terrainKey === null) {
-			newFm = fmBlock.replace(/^\s*terrain:\s*[^\r\n]*(?:\r?\n)?/gm, "").trimEnd();
+			delete fm["terrain"];
 		} else {
-			const terrainLine = /^\s*terrain:\s*.*$/m;
-			newFm = terrainLine.test(fmBlock)
-				? fmBlock.replace(terrainLine, `terrain: ${terrainKey}`)
-				: fmBlock.trimEnd() + (fmBlock.endsWith("\n") ? "" : "\n") + `terrain: ${terrainKey}\n`;
+			fm["terrain"] = terrainKey;
 		}
-		newContent = `---\n${newFm}\n---\n${rest}`;
-	} else {
-		if (terrainKey === null) return true;
-		newContent = `---\nterrain: ${terrainKey}\n---\n\n${content}`;
-	}
-	await app.vault.modify(file, newContent);
+	});
 	return true;
 }
 
@@ -46,26 +32,12 @@ export function getIconOverrideFromFile(app: App, path: string): string | null {
 export async function setIconOverrideInFile(app: App, path: string, icon: string | null): Promise<boolean> {
 	const file = app.vault.getAbstractFileByPath(path);
 	if (!(file instanceof TFile)) return false;
-	const content = await app.vault.read(file);
-	const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-	let newContent: string;
-	if (fmMatch) {
-		const fmBlock = fmMatch[1];
-		const rest = content.slice(fmMatch[0].length);
-		let newFm: string;
+	await app.fileManager.processFrontMatter(file, (fm) => {
 		if (icon === null) {
-			newFm = fmBlock.replace(/^\s*icon:\s*[^\r\n]*(?:\r?\n)?/gm, "").trimEnd();
+			delete fm["icon"];
 		} else {
-			const iconLine = /^\s*icon:\s*.*$/m;
-			newFm = iconLine.test(fmBlock)
-				? fmBlock.replace(iconLine, `icon: ${icon}`)
-				: fmBlock.trimEnd() + (fmBlock.endsWith("\n") ? "" : "\n") + `icon: ${icon}\n`;
+			fm["icon"] = icon;
 		}
-		newContent = `---\n${newFm}\n---\n${rest}`;
-	} else {
-		if (icon === null) return true;
-		newContent = `---\nicon: ${icon}\n---\n\n${content}`;
-	}
-	await app.vault.modify(file, newContent);
+	});
 	return true;
 }

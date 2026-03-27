@@ -37,7 +37,7 @@ function makePlugin(hexPathFn: (x: number, y: number) => string) {
 			hexEditorStartCollapsed: false,
 		},
 		availableIcons: [],
-	} as unknown as import("../src/DuckmagePlugin").default;
+	} as unknown as import("../src/HexmakerPlugin").default;
 }
 
 // ── loadData ──────────────────────────────────────────────────────────────────

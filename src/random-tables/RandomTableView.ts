@@ -8,7 +8,7 @@ import {
   ViewStateResult,
   WorkspaceLeaf,
 } from "obsidian";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { VIEW_TYPE_RANDOM_TABLES } from "../constants";
 import { normalizeFolder, makeTableTemplate } from "../utils";
 import { RandomTableEditorModal } from "./RandomTableEditorModal";
@@ -72,7 +72,7 @@ export class RandomTableView extends ItemView {
 
   constructor(
     leaf: WorkspaceLeaf,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
   ) {
     super(leaf);
   }
@@ -379,24 +379,22 @@ export class RandomTableView extends ItemView {
         if (!tableFilePath) return;
         const tableFile = this.app.vault.getAbstractFileByPath(tableFilePath);
         if (!(tableFile instanceof TFile)) return;
-        const content = await this.app.vault.read(tableFile);
-        const table = parseRandomTable(content);
-        if (table.entries.some((e) => e.result === createdFile.basename))
-          return;
-        // Append new row to the markdown table block in the file, preserving post-table content
-        const suffix = extractPostTableContent(content);
-        const newRow = `| ${createdFile.basename} | 1 |`;
-        const replaced = content.replace(
-          /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
-          (_, hdr, body) => {
-            const tableLines = body.split("\n")
-              .filter((l: string) => l.trimStart().startsWith("|"))
-              .join("\n");
-            return `${hdr}${tableLines.trimEnd() ? tableLines.trimEnd() + "\n" : ""}${newRow}\n`;
-          },
-        );
-        const updated = suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
-        await this.app.vault.modify(tableFile, updated);
+        await this.app.vault.process(tableFile, (content) => {
+          const table = parseRandomTable(content);
+          if (table.entries.some((e) => e.result === createdFile.basename)) return content;
+          const suffix = extractPostTableContent(content);
+          const newRow = `| ${createdFile.basename} | 1 |`;
+          const replaced = content.replace(
+            /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
+            (_, hdr, body) => {
+              const tableLines = body.split("\n")
+                .filter((l: string) => l.trimStart().startsWith("|"))
+                .join("\n");
+              return `${hdr}${tableLines.trimEnd() ? tableLines.trimEnd() + "\n" : ""}${newRow}\n`;
+            },
+          );
+          return suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
+        });
         await this.loadList();
         if (this.activeFile?.path === tableFilePath) await this.renderDetail();
       }),
@@ -1190,36 +1188,37 @@ export class RandomTableView extends ItemView {
    * No-op when there's no linked folder or nothing has changed.
    */
   private async autoSyncLinkedFolder(tableFile: TFile): Promise<void> {
-    const content = await this.app.vault.read(tableFile);
-    const table = parseRandomTable(content);
-    if (!table.linkedFolder) return;
+    await this.app.vault.process(tableFile, (content) => {
+      const table = parseRandomTable(content);
+      if (!table.linkedFolder) return content;
 
-    const lf = normalizeFolder(table.linkedFolder);
-    const folderFiles = this.app.vault.getMarkdownFiles()
-      .filter(f => f.parent?.path === lf && !f.basename.startsWith("_"))
-      .sort((a, b) => a.basename.localeCompare(b.basename));
+      const lf = normalizeFolder(table.linkedFolder);
+      const folderFiles = this.app.vault.getMarkdownFiles()
+        .filter(f => f.parent?.path === lf && !f.basename.startsWith("_"))
+        .sort((a, b) => a.basename.localeCompare(b.basename));
 
-    const folderBasenames = new Set(folderFiles.map(f => f.basename));
-    const currentNames = new Set(table.entries.map(e => e.result));
+      const folderBasenames = new Set(folderFiles.map(f => f.basename));
+      const currentNames = new Set(table.entries.map(e => e.result));
 
-    const hasNew = folderFiles.some(f => !currentNames.has(f.basename));
-    const hasStale = table.entries.some(e => !folderBasenames.has(e.result));
-    if (!hasNew && !hasStale) return;
+      const hasNew = folderFiles.some(f => !currentNames.has(f.basename));
+      const hasStale = table.entries.some(e => !folderBasenames.has(e.result));
+      if (!hasNew && !hasStale) return content;
 
-    const kept = table.entries.filter(e => folderBasenames.has(e.result));
-    const added = folderFiles
-      .filter(f => !currentNames.has(f.basename))
-      .map(f => ({ result: f.basename, weight: 1 }));
-    const newEntries = [...kept, ...added];
+      const kept = table.entries.filter(e => folderBasenames.has(e.result));
+      const added = folderFiles
+        .filter(f => !currentNames.has(f.basename))
+        .map(f => ({ result: f.basename, weight: 1 }));
+      const newEntries = [...kept, ...added];
 
-    const suffix = extractPostTableContent(content);
-    const rows = newEntries.map(e => `| ${e.result} | ${e.weight} |`).join("\n");
-    const replaced = content.replace(
-      /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
-      `$1${rows}\n`,
-    );
-    const updated = suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
-    if (updated !== content) await this.app.vault.modify(tableFile, updated);
+      const suffix = extractPostTableContent(content);
+      const rows = newEntries.map(e => `| ${e.result} | ${e.weight} |`).join("\n");
+      const replaced = content.replace(
+        /(\| Result \| Weight \|\n\|[-| ]+\|\n)([\s\S]*)$/,
+        `$1${rows}\n`,
+      );
+      const updated = suffix ? replaced.trimEnd() + "\n\n" + suffix : replaced;
+      return updated !== content ? updated : content;
+    });
   }
 
   private renderDetailSeq = 0;
@@ -1275,11 +1274,7 @@ export class RandomTableView extends ItemView {
     }
     dieSelect.addEventListener("change", async () => {
       const newDice = parseInt(dieSelect.value, 10);
-      const updated = setDiceInFrontmatter(
-        await this.app.vault.read(file),
-        newDice,
-      );
-      await this.app.vault.modify(file, updated);
+      await this.app.vault.process(file, (content) => setDiceInFrontmatter(content, newDice));
       await this.renderDetail();
     });
 

@@ -1,11 +1,11 @@
 import { App, SuggestModal, TFile } from "obsidian";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder } from "../utils";
 
 export class FileLinkSuggestModal extends SuggestModal<TFile> {
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private onChoose: (file: TFile) => void,
 	) {
 		super(app);

@@ -1,11 +1,11 @@
 import { App, TFile, Notice } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder } from "../utils";
 import { parseWorkflow, generateDefaultTemplate, stepPlaceholder, rollDiceFormulaWithBreakdown, type Workflow } from "./workflow";
 import { parseRandomTable, rollOnTable } from "./randomTable";
 
-export class WorkflowWizardModal extends DuckmageModal {
+export class WorkflowWizardModal extends HexmakerModal {
 	private workflow!: Workflow;
 	// rolls[stepIdx][rollIdx] = result string or null (not yet rolled)
 	private rolls: (string | null)[][] = [];
@@ -22,7 +22,7 @@ export class WorkflowWizardModal extends DuckmageModal {
 
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private workflowFile: TFile,
 	) {
 		super(app);
@@ -362,7 +362,7 @@ export class WorkflowWizardModal extends DuckmageModal {
 			let savedFile: TFile;
 			const existing = this.app.vault.getAbstractFileByPath(notePath);
 			if (existing instanceof TFile) {
-				await this.app.vault.modify(existing, noteContent);
+				await this.app.vault.process(existing, () => noteContent);
 				savedFile = existing;
 			} else {
 				savedFile = await this.app.vault.create(notePath, noteContent);

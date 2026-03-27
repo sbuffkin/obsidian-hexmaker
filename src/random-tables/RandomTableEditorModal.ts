@@ -1,8 +1,8 @@
 import { App, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
+import { HexmakerModal } from "../HexmakerModal";
 import { parseRandomTable, extractPostTableContent } from "./randomTable";
 import type { RandomTableEntry } from "./randomTable";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder } from "../utils";
 
 /**
@@ -10,13 +10,13 @@ import { normalizeFolder } from "../utils";
  * Shows existing entries as editable rows and allows adding new ones.
  * Saves back to the file, preserving frontmatter.
  */
-export class RandomTableEditorModal extends DuckmageModal {
+export class RandomTableEditorModal extends HexmakerModal {
   // Held so onClose can flush a pending "add row" entry and save it
   private flushAndSave: (() => Promise<void>) | null = null;
 
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private file: TFile,
     private onSaved?: () => void,
     private initialContent?: string,
@@ -447,7 +447,7 @@ export class RandomTableEditorModal extends DuckmageModal {
         suffix,
       );
       try {
-        await this.app.vault.modify(this.file, newContent);
+        await this.app.vault.process(this.file, () => newContent);
         this.onSaved?.();
       } catch {
         /* best-effort */

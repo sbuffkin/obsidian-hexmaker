@@ -1,6 +1,6 @@
 import { App, TFile, Notice } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { normalizeFolder } from "../utils";
 import {
 	parseWorkflow,
@@ -22,13 +22,13 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export class WorkflowEditorModal extends DuckmageModal {
+export class WorkflowEditorModal extends HexmakerModal {
 	private flushAndSave: (() => Promise<void>) | null = null;
 
 
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private file: TFile,
 		private onSaved?: () => void,
 		private preloaded?: { content: string; templateContent: string },
@@ -502,7 +502,7 @@ export class WorkflowEditorModal extends DuckmageModal {
 			};
 
 			try {
-				await this.app.vault.modify(this.file, buildWorkflowContent(updatedWorkflow));
+				await this.app.vault.process(this.file, () => buildWorkflowContent(updatedWorkflow));
 
 				const templateDir = `${wfFolder}/templates`;
 				if (!this.app.vault.getAbstractFileByPath(templateDir)) {
@@ -510,7 +510,7 @@ export class WorkflowEditorModal extends DuckmageModal {
 				}
 				const tmplFile = this.app.vault.getAbstractFileByPath(templatePath);
 				if (tmplFile instanceof TFile) {
-					await this.app.vault.modify(tmplFile, templateContent);
+					await this.app.vault.process(tmplFile, () => templateContent);
 				} else {
 					await this.app.vault.create(templatePath, templateContent);
 				}

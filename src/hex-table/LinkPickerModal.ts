@@ -1,14 +1,14 @@
 import { App, Notice, TFile } from "obsidian";
-import type DuckmagePlugin from "../DuckmagePlugin";
-import { DuckmageModal } from "../DuckmageModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
+import { HexmakerModal } from "../HexmakerModal";
 import { normalizeFolder } from "../utils";
 import { addLinkToSection, addBacklinkToFile } from "../sections";
 import type { LinkSection } from "../types";
 
-export class LinkPickerModal extends DuckmageModal {
+export class LinkPickerModal extends HexmakerModal {
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private hexPath: string,
     private section: LinkSection,
     private sourceFolder: string,

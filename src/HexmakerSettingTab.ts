@@ -1,11 +1,11 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
-import type DuckmagePlugin from "./DuckmagePlugin";
+import type HexmakerPlugin from "./HexmakerPlugin";
 import { normalizeFolder } from "./utils";
 
-export class DuckmageSettingTab extends PluginSettingTab {
-	plugin: DuckmagePlugin;
+export class HexmakerSettingTab extends PluginSettingTab {
+	plugin: HexmakerPlugin;
 
-	constructor(app: App, plugin: DuckmagePlugin) {
+	constructor(app: App, plugin: HexmakerPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -69,7 +69,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 							const ys = Array.from({ length: rows }, (_, i) => oy + i);
 							totalCreated += await this.plugin.generateHexNotes(region.name, xs, ys);
 						}
-						if (totalCreated > 0) new Notice(`Duckmage: generated ${totalCreated} hex note${totalCreated !== 1 ? "s" : ""}.`);
+						if (totalCreated > 0) new Notice(`Hexmaker: generated ${totalCreated} hex note${totalCreated !== 1 ? "s" : ""}.`);
 					}
 					new Notice("Folders generated.");
 					this.display();
@@ -202,29 +202,6 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		containerEl.createEl("h3", { text: "Generate world data" });
-		containerEl.createEl("p", {
-			cls: "setting-item-description duckmage-generate-warning",
-			text: "⚠️ Configure all folder settings above before selecting Generate. This will create terrain table notes, add roller links to all table notes, and link each hex note to its terrain's encounters table. Safe to run multiple times — existing notes and links are not overwritten.",
-		});
-		new Setting(containerEl)
-			.setName("Generate terrain tables & hex links")
-			.setDesc("Creates missing terrain table notes, adds roller links to all table notes (so they can be opened in the Duckmage Roller from within Obsidian), and links each hex note's terrain encounters table into its Encounters Table section.")
-			.addButton(btn =>
-				btn.setButtonText("Generate").setCta().onClick(async () => {
-					btn.setDisabled(true);
-					btn.setButtonText("Generating…");
-					try {
-						await this.plugin.ensureTerrainTables();
-						await this.plugin.ensureAllRollerLinks();
-						await this.plugin.backfillTerrainLinks();
-					} finally {
-						btn.setDisabled(false);
-						btn.setButtonText("Generate");
-					}
-				}),
-			);
-
 		new Setting(containerEl)
 			.setName("Hex editor sections start collapsed")
 			.setDesc("Choose which sections open collapsed by default in the right-click hex editor.")
@@ -250,7 +227,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					.setPlaceholder("templates/hex.md")
 					.setValue(this.plugin.settings.templatePath)
 					.onChange(async value => {
-						this.plugin.settings.templatePath = (value ?? "").replace(/^\/+|\/+$/g, "");
+						this.plugin.settings.templatePath = normalizeFolder(value ?? "");
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -312,7 +289,30 @@ export class DuckmageSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		containerEl.createEl("h3", { text: "Path types" });
+		new Setting(containerEl).setName("Generate world data").setHeading();
+		containerEl.createEl("p", {
+			cls: "setting-item-description duckmage-generate-warning",
+			text: "⚠️ Configure all folder settings above before selecting Generate. This will create terrain table notes, add roller links to all table notes, and link each hex note to its terrain's encounters table. Safe to run multiple times — existing notes and links are not overwritten.",
+		});
+		new Setting(containerEl)
+			.setName("Generate terrain tables & hex links")
+			.setDesc("Creates missing terrain table notes, adds roller links to all table notes (so they can be opened in the Hexmaker Roller from within Obsidian), and links each hex note's terrain encounters table into its Encounters Table section.")
+			.addButton(btn =>
+				btn.setButtonText("Generate").setCta().onClick(async () => {
+					btn.setDisabled(true);
+					btn.setButtonText("Generating…");
+					try {
+						await this.plugin.ensureTerrainTables();
+						await this.plugin.ensureAllRollerLinks();
+						await this.plugin.backfillTerrainLinks();
+					} finally {
+						btn.setDisabled(false);
+						btn.setButtonText("Generate");
+					}
+				}),
+			);
+
+		new Setting(containerEl).setName("Path types").setHeading();
 		containerEl.createEl("p", {
 			text: "Path types define the available drawing tools (roads, rivers, etc.). Edit them from the Path tool on the hex map.",
 			cls: "setting-item-description",
@@ -325,7 +325,7 @@ export class DuckmageSettingTab extends PluginSettingTab {
 			row.createSpan({ text: `${pt.name}  (${pt.width}px, ${pt.lineStyle}, ${pt.routing})` });
 		}
 
-		containerEl.createEl("h3", { text: "Terrain palettes" });
+		new Setting(containerEl).setName("Terrain palettes").setHeading();
 		containerEl.createEl("p", {
 			text: "Each region uses one palette. Assign a palette when creating a region — it cannot be changed after. Edit palette contents from the terrain tool on the hex map.",
 			cls: "setting-item-description",

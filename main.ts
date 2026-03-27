@@ -1,1 +1,1 @@
-export { default } from "./src/DuckmagePlugin";
+export { default } from "./src/HexmakerPlugin";

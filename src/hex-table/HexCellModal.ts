@@ -1,12 +1,12 @@
 import { App, TFile } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
+import { HexmakerModal } from "../HexmakerModal";
 import { setSectionContent } from "../sections";
 import { getTerrainFromFile } from "../frontmatter";
 import { normalizeFolder } from "../utils";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { RandomTableModal } from "../random-tables/RandomTableModal";
 
-export class HexCellModal extends DuckmageModal {
+export class HexCellModal extends HexmakerModal {
   private textarea: HTMLTextAreaElement | null = null;
 
   constructor(
@@ -16,7 +16,7 @@ export class HexCellModal extends DuckmageModal {
     private isLink: boolean,
     private filePath?: string,
     private sectionKey?: string,
-    private plugin?: DuckmagePlugin,
+    private plugin?: HexmakerPlugin,
     private onSave?: (newContent: string) => void,
     private beforeSave?: () => Promise<void>,
   ) {

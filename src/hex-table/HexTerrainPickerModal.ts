@@ -1,13 +1,13 @@
 import { App } from "obsidian";
-import type DuckmagePlugin from "../DuckmagePlugin";
-import { DuckmageModal } from "../DuckmageModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
+import { HexmakerModal } from "../HexmakerModal";
 import { getIconUrl, normalizeFolder, createIconEl } from "../utils";
 import { setTerrainInFile } from "../frontmatter";
 
-export class HexTerrainPickerModal extends DuckmageModal {
+export class HexTerrainPickerModal extends HexmakerModal {
   constructor(
     app: App,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
     private palette: import("../types").TerrainColor[],
     private hexPath: string,
     private currentTerrain: string | null,

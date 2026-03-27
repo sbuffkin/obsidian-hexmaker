@@ -21,7 +21,7 @@ function makeApp(filePath: string, initialContent: string) {
 		vault: {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
 			read: vi.fn(async () => stored),
-			modify: vi.fn(async (_f: unknown, content: string) => { stored = content; }),
+			process: vi.fn(async (_f: unknown, fn: (s: string) => string) => { stored = fn(stored); return stored; }),
 		},
 		metadataCache: {
 			getFileCache: vi.fn(() => null),
@@ -333,7 +333,7 @@ function makeAppForBacklink(
 				return null;
 			},
 			read: vi.fn(async (f: TFile) => contents[f.path] ?? ""),
-			modify: vi.fn(async (f: TFile, content: string) => { contents[f.path] = content; }),
+			process: vi.fn(async (f: TFile, fn: (s: string) => string) => { contents[f.path] = fn(contents[f.path] ?? ""); return contents[f.path]; }),
 		},
 		metadataCache: {
 			getFileCache: vi.fn((f: TFile) => {
@@ -388,7 +388,7 @@ describe("addBacklinkToFile", () => {
 			true, // existingBacklinkToHex
 		);
 		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
-		// modify should never have been called
-		expect(app.vault.modify).not.toHaveBeenCalled();
+		// process should never have been called
+		expect(app.vault.process).not.toHaveBeenCalled();
 	});
 });

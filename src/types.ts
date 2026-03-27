@@ -35,7 +35,7 @@ export interface TerrainColor {
 	category?: string;
 }
 
-export interface DuckmagePluginSettings {
+export interface HexmakerPluginSettings {
 	mySetting: string;
 	worldFolder: string;
 	hexFolder: string;

@@ -1,8 +1,8 @@
 import { App } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
+import { HexmakerModal } from "../HexmakerModal";
 import type { TerrainColor } from "../types";
 
-export class TerrainFilterModal extends DuckmageModal {
+export class TerrainFilterModal extends HexmakerModal {
   constructor(
     app: App,
     private palette: TerrainColor[],

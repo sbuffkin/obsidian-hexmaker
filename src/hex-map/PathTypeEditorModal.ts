@@ -1,10 +1,10 @@
 import { App, Setting } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import type { PathType, PathLineStyle, PathRouting } from "../types";
 import { buildPathPreviewSvg } from "./PathPickerModal";
 
-export class PathTypeEditorModal extends DuckmageModal {
+export class PathTypeEditorModal extends HexmakerModal {
 	private pendingName: string;
 	private pendingColor: string;
 	private pendingWidth: number;
@@ -15,7 +15,7 @@ export class PathTypeEditorModal extends DuckmageModal {
 
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private entry: PathType,
 		private onSave: () => void,
 		private onDelete: () => void,

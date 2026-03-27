@@ -1,12 +1,12 @@
 import { App } from "obsidian";
-import { DuckmageModal } from "../DuckmageModal";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import { HexmakerModal } from "../HexmakerModal";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import { getIconUrl } from "../utils";
 
-export class IconPickerModal extends DuckmageModal {
+export class IconPickerModal extends HexmakerModal {
 	constructor(
 		app: App,
-		private plugin: DuckmagePlugin,
+		private plugin: HexmakerPlugin,
 		private onSelect: (iconName: string | null) => void,
 	) {
 		super(app);

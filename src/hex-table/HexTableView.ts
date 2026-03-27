@@ -1,5 +1,5 @@
 import { App, ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
-import type DuckmagePlugin from "../DuckmagePlugin";
+import type HexmakerPlugin from "../HexmakerPlugin";
 import {
   VIEW_TYPE_HEX_MAP,
   VIEW_TYPE_HEX_TABLE,
@@ -83,7 +83,7 @@ export class HexTableView extends ItemView {
 
   constructor(
     leaf: WorkspaceLeaf,
-    private plugin: DuckmagePlugin,
+    private plugin: HexmakerPlugin,
   ) {
     super(leaf);
   }
