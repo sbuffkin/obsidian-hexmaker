@@ -85,7 +85,8 @@ export class HexEditorModal extends Modal {
     });
     centerBtn.addEventListener("click", () => {
       const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_HEX_MAP);
-      if (leaves.length > 0) (leaves[0].view as any).centerOnHex?.(this.x, this.y);
+      if (leaves.length > 0)
+        (leaves[0].view as any).centerOnHex?.(this.x, this.y);
     });
 
     if (hexExists) {
@@ -110,19 +111,28 @@ export class HexEditorModal extends Modal {
     );
     // Show current terrain as a small swatch + name in the header
     const paletteEntry = directTerrain
-      ? (this.plugin.settings.terrainPalette ?? []).find(p => p.name === directTerrain)
+      ? (this.plugin.settings.terrainPalette ?? []).find(
+          (p) => p.name === directTerrain,
+        )
       : undefined;
     const iconToShow = directIcon ?? paletteEntry?.icon;
     if (paletteEntry || iconToShow) {
-      const preview = terrainHeader.createSpan({ cls: "duckmage-terrain-header-preview" });
-      const swatch = preview.createSpan({ cls: "duckmage-terrain-header-swatch" });
+      const preview = terrainHeader.createSpan({
+        cls: "duckmage-terrain-header-preview",
+      });
+      const swatch = preview.createSpan({
+        cls: "duckmage-terrain-header-swatch",
+      });
       if (paletteEntry) swatch.style.backgroundColor = paletteEntry.color;
       if (iconToShow) {
         const img = swatch.createEl("img");
         img.src = getIconUrl(this.plugin, iconToShow);
       }
       if (paletteEntry) {
-        preview.createSpan({ text: paletteEntry.name, cls: "duckmage-terrain-header-name" });
+        preview.createSpan({
+          text: paletteEntry.name,
+          cls: "duckmage-terrain-header-name",
+        });
       }
     }
     this.renderTerrainSection(terrainBody, path, directTerrain, directIcon);
@@ -148,7 +158,7 @@ export class HexEditorModal extends Modal {
 
     const { body: featuresBody } = this.makeCollapsible(
       contentEl,
-      "World features",
+      "Features",
       s.hexEditorFeaturesCollapsed ?? false,
     );
     this.renderDropdownSection(
@@ -225,7 +235,8 @@ export class HexEditorModal extends Modal {
       // Only drag from the native modal header — the strip above .modal-content.
       // This area never scrolls so the drag zone is always accessible.
       const modalContent = modal.querySelector<HTMLElement>(".modal-content");
-      if (modalContent && e.clientY >= modalContent.getBoundingClientRect().top) return;
+      if (modalContent && e.clientY >= modalContent.getBoundingClientRect().top)
+        return;
       if ((e.target as HTMLElement).closest("button, a")) return;
 
       e.preventDefault();
@@ -233,11 +244,13 @@ export class HexEditorModal extends Modal {
       modal.style.transform = "none";
       modal.style.left = `${r.left}px`;
       modal.style.top = `${r.top}px`;
-      const sx = e.clientX, sy = e.clientY;
-      const ox = r.left, oy = r.top;
+      const sx = e.clientX,
+        sy = e.clientY;
+      const ox = r.left,
+        oy = r.top;
       const onMove = (ev: MouseEvent) => {
         modal.style.left = `${ox + ev.clientX - sx}px`;
-        modal.style.top  = `${oy + ev.clientY - sy}px`;
+        modal.style.top = `${oy + ev.clientY - sy}px`;
       };
       const onUp = () => {
         document.removeEventListener("mousemove", onMove);
@@ -258,27 +271,31 @@ export class HexEditorModal extends Modal {
     );
   }
 
-  private renderNeighborWidget(container: HTMLElement, x: number, y: number): void {
+  private renderNeighborWidget(
+    container: HTMLElement,
+    x: number,
+    y: number,
+  ): void {
     const isFlat = this.plugin.settings.hexOrientation === "flat";
     const widget = container.createDiv({ cls: "duckmage-neighbor-widget" });
 
     type NeighborDef = { l: number; t: number; nx: number; ny: number };
     const defs: NeighborDef[] = isFlat
       ? [
-          { l: 22, t: 2,  nx: x,     ny: y - 1 },                              // N
-          { l: 42, t: 13, nx: x + 1, ny: x % 2 === 0 ? y - 1 : y },            // NE
-          { l: 42, t: 32, nx: x + 1, ny: x % 2 === 0 ? y : y + 1 },            // SE
-          { l: 22, t: 40, nx: x,     ny: y + 1 },                              // S
-          { l: 2,  t: 32, nx: x - 1, ny: x % 2 === 0 ? y : y + 1 },            // SW
-          { l: 2,  t: 13, nx: x - 1, ny: x % 2 === 0 ? y - 1 : y },            // NW
+          { l: 22, t: 2, nx: x, ny: y - 1 }, // N
+          { l: 42, t: 13, nx: x + 1, ny: x % 2 === 0 ? y - 1 : y }, // NE
+          { l: 42, t: 32, nx: x + 1, ny: x % 2 === 0 ? y : y + 1 }, // SE
+          { l: 22, t: 40, nx: x, ny: y + 1 }, // S
+          { l: 2, t: 32, nx: x - 1, ny: x % 2 === 0 ? y : y + 1 }, // SW
+          { l: 2, t: 13, nx: x - 1, ny: x % 2 === 0 ? y - 1 : y }, // NW
         ]
       : [
-          { l: 10, t: 1,  nx: y % 2 === 0 ? x - 1 : x,     ny: y - 1 },        // NW
-          { l: 34, t: 1,  nx: y % 2 === 0 ? x : x + 1,     ny: y - 1 },        // NE
-          { l: 0,  t: 18, nx: x - 1, ny: y },                                   // W
-          { l: 44, t: 18, nx: x + 1, ny: y },                                   // E
-          { l: 10, t: 35, nx: y % 2 === 0 ? x - 1 : x,     ny: y + 1 },        // SW
-          { l: 34, t: 35, nx: y % 2 === 0 ? x : x + 1,     ny: y + 1 },        // SE
+          { l: 10, t: 1, nx: y % 2 === 0 ? x - 1 : x, ny: y - 1 }, // NW
+          { l: 34, t: 1, nx: y % 2 === 0 ? x : x + 1, ny: y - 1 }, // NE
+          { l: 0, t: 18, nx: x - 1, ny: y }, // W
+          { l: 44, t: 18, nx: x + 1, ny: y }, // E
+          { l: 10, t: 35, nx: y % 2 === 0 ? x - 1 : x, ny: y + 1 }, // SW
+          { l: 34, t: 35, nx: y % 2 === 0 ? x : x + 1, ny: y + 1 }, // SE
         ];
 
     for (const { l, t, nx, ny } of defs) {
@@ -294,7 +311,7 @@ export class HexEditorModal extends Modal {
         const nPath = this.plugin.hexPath(nx, ny);
         const terrain = getTerrainFromFile(this.app, nPath);
         const entry = terrain
-          ? this.plugin.settings.terrainPalette.find(p => p.name === terrain)
+          ? this.plugin.settings.terrainPalette.find((p) => p.name === terrain)
           : undefined;
         if (entry) tile.style.backgroundColor = entry.color;
         tile.addEventListener("click", () => {
@@ -349,9 +366,16 @@ export class HexEditorModal extends Modal {
 
     // Clear terrain — always first in the grid
     if (currentTerrain) {
-      const clearBtn = grid.createDiv({ cls: "duckmage-terrain-option duckmage-terrain-option-clear" });
-      clearBtn.createDiv({ cls: "duckmage-terrain-preview duckmage-terrain-preview-clear" });
-      clearBtn.createSpan({ text: "Clear", cls: "duckmage-terrain-option-name" });
+      const clearBtn = grid.createDiv({
+        cls: "duckmage-terrain-option duckmage-terrain-option-clear",
+      });
+      clearBtn.createDiv({
+        cls: "duckmage-terrain-preview duckmage-terrain-preview-clear",
+      });
+      clearBtn.createSpan({
+        text: "Clear",
+        cls: "duckmage-terrain-option-name",
+      });
       clearBtn.addEventListener("click", async () => {
         await setTerrainInFile(this.app, path, null);
         void this.plugin.syncHexEncounterTableLink(path, null);
@@ -417,7 +441,10 @@ export class HexEditorModal extends Modal {
     iconSelect.addEventListener("change", async () => {
       await this.ensureHexNote();
       await setIconOverrideInFile(this.app, path, iconSelect.value || null);
-      this.onChanged(terrainOverrides, new Map([[path, iconSelect.value || null]]));
+      this.onChanged(
+        terrainOverrides,
+        new Map([[path, iconSelect.value || null]]),
+      );
     });
     const clearIconBtn = iconRow.createEl("button", {
       text: "Clear",
@@ -438,7 +465,10 @@ export class HexEditorModal extends Modal {
     });
   }
 
-  private getFilesForDropdown(folder: string, filterType?: "roll-filter" | "encounter-filter"): TFile[] {
+  private getFilesForDropdown(
+    folder: string,
+    filterType?: "roll-filter" | "encounter-filter",
+  ): TFile[] {
     const normalized = normalizeFolder(folder);
     const all = this.app.vault.getMarkdownFiles();
     const scoped = normalized
@@ -446,9 +476,10 @@ export class HexEditorModal extends Modal {
       : all;
     let filtered = scoped.filter((f) => !f.basename.startsWith("_"));
     if (filterType) {
-      const excluded = filterType === "encounter-filter"
-        ? this.plugin.settings.encounterTableExcludedFolders
-        : this.plugin.settings.rollTableExcludedFolders;
+      const excluded =
+        filterType === "encounter-filter"
+          ? this.plugin.settings.encounterTableExcludedFolders
+          : this.plugin.settings.rollTableExcludedFolders;
       filtered = this.plugin.filterTableFiles(filtered, filterType, excluded);
     }
     return filtered.sort((a, b) => a.basename.localeCompare(b.basename));
@@ -470,7 +501,10 @@ export class HexEditorModal extends Modal {
 
     const select = header.createEl("select", { cls: "duckmage-link-select" });
     select.createEl("option", { value: "", text: "— add —" });
-    const filterType = section === "Encounters Table" ? "encounter-filter" as const : undefined;
+    const filterType =
+      section === "Encounters Table"
+        ? ("encounter-filter" as const)
+        : undefined;
     for (const file of this.getFilesForDropdown(sourceFolder, filterType)) {
       select.createEl("option", { value: file.path, text: file.basename });
     }

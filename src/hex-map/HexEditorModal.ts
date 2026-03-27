@@ -1,7 +1,12 @@
 import { App, Notice, TFile } from "obsidian";
 import { HexmakerModal } from "../HexmakerModal";
 import type HexmakerPlugin from "../HexmakerPlugin";
-import { getIconUrl, normalizeFolder, makeTableTemplate, createIconEl } from "../utils";
+import {
+  getIconUrl,
+  normalizeFolder,
+  makeTableTemplate,
+  createIconEl,
+} from "../utils";
 import {
   getTerrainFromFile,
   setTerrainInFile,
@@ -92,7 +97,8 @@ export class HexEditorModal extends HexmakerModal {
     });
     centerBtn.addEventListener("click", () => {
       const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_HEX_MAP);
-      if (leaves.length > 0) (leaves[0].view as any).centerOnHex?.(this.x, this.y);
+      if (leaves.length > 0)
+        (leaves[0].view as any).centerOnHex?.(this.x, this.y);
     });
 
     // "Open note" can be determined synchronously from the vault index
@@ -131,19 +137,28 @@ export class HexEditorModal extends HexmakerModal {
       s.hexEditorTerrainCollapsed ?? false,
     );
     const paletteEntry = directTerrain
-      ? this.plugin.getRegionPalette(this.regionName).find(p => p.name === directTerrain)
+      ? this.plugin
+          .getRegionPalette(this.regionName)
+          .find((p) => p.name === directTerrain)
       : undefined;
     const iconToShow = directIcon ?? paletteEntry?.icon;
     if (paletteEntry || iconToShow) {
-      const preview = terrainHeader.createSpan({ cls: "duckmage-terrain-header-preview" });
-      const swatch = preview.createSpan({ cls: "duckmage-terrain-header-swatch" });
+      const preview = terrainHeader.createSpan({
+        cls: "duckmage-terrain-header-preview",
+      });
+      const swatch = preview.createSpan({
+        cls: "duckmage-terrain-header-swatch",
+      });
       if (paletteEntry) swatch.style.backgroundColor = paletteEntry.color;
       if (iconToShow) {
         const img = swatch.createEl("img");
         img.src = getIconUrl(this.plugin, iconToShow);
       }
       if (paletteEntry) {
-        preview.createSpan({ text: paletteEntry.name, cls: "duckmage-terrain-header-name" });
+        preview.createSpan({
+          text: paletteEntry.name,
+          cls: "duckmage-terrain-header-name",
+        });
       }
     }
     this.renderTerrainSection(terrainBody, path, directTerrain, directIcon);
@@ -156,29 +171,76 @@ export class HexEditorModal extends HexmakerModal {
       s.hexEditorNotesCollapsed ?? false,
     );
     for (const { key, label } of TEXT_SECTIONS) {
-      this.renderTextSection(notesBody, path, key, label, allText.get(key) ?? "");
+      this.renderTextSection(
+        notesBody,
+        path,
+        key,
+        label,
+        allText.get(key) ?? "",
+      );
     }
 
     bodyEl.createEl("hr", { cls: "duckmage-editor-divider" });
 
     const { body: featuresBody } = this.makeCollapsible(
       bodyEl,
-      "World features",
+      "Features",
       s.hexEditorFeaturesCollapsed ?? false,
     );
-    this.renderDropdownSection(featuresBody, path, "Encounters Table", hexExists, s.tablesFolder, allLinks.get("encounters table") ?? []);
-    this.renderDropdownSection(featuresBody, path, "Towns",            hexExists, s.townsFolder,  allLinks.get("towns") ?? []);
-    this.renderDropdownSection(featuresBody, path, "Dungeons",         hexExists, s.dungeonsFolder, allLinks.get("dungeons") ?? []);
-    this.renderDropdownSection(featuresBody, path, "Quests",           hexExists, s.questsFolder,  allLinks.get("quests") ?? []);
-    this.renderDropdownSection(featuresBody, path, "Factions",         hexExists, s.factionsFolder, allLinks.get("factions") ?? []);
-    this.renderDropdownSection(featuresBody, path, "Features",         hexExists, s.featuresFolder, allLinks.get("features") ?? []);
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Encounters Table",
+      hexExists,
+      s.tablesFolder,
+      allLinks.get("encounters table") ?? [],
+    );
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Towns",
+      hexExists,
+      s.townsFolder,
+      allLinks.get("towns") ?? [],
+    );
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Dungeons",
+      hexExists,
+      s.dungeonsFolder,
+      allLinks.get("dungeons") ?? [],
+    );
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Quests",
+      hexExists,
+      s.questsFolder,
+      allLinks.get("quests") ?? [],
+    );
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Factions",
+      hexExists,
+      s.factionsFolder,
+      allLinks.get("factions") ?? [],
+    );
+    this.renderDropdownSection(
+      featuresBody,
+      path,
+      "Features",
+      hexExists,
+      s.featuresFolder,
+      allLinks.get("features") ?? [],
+    );
   }
 
   onClose() {
     this.onModalClose?.();
     this.contentEl.empty();
   }
-
 
   private isOnMap(nx: number, ny: number): boolean {
     const region = this.plugin.getOrCreateRegion(this.regionName);
@@ -191,28 +253,34 @@ export class HexEditorModal extends HexmakerModal {
     );
   }
 
-  private renderNeighborWidget(container: HTMLElement, x: number, y: number): void {
+  private renderNeighborWidget(
+    container: HTMLElement,
+    x: number,
+    y: number,
+  ): void {
     const isFlat = this.plugin.settings.hexOrientation === "flat";
-    const paletteMap = new Map(this.plugin.getRegionPalette(this.regionName).map(p => [p.name, p]));
+    const paletteMap = new Map(
+      this.plugin.getRegionPalette(this.regionName).map((p) => [p.name, p]),
+    );
     const widget = container.createDiv({ cls: "duckmage-neighbor-widget" });
 
     type NeighborDef = { l: number; t: number; nx: number; ny: number };
     const defs: NeighborDef[] = isFlat
       ? [
-          { l: 22, t: 2,  nx: x,     ny: y - 1 },                              // N
-          { l: 42, t: 13, nx: x + 1, ny: x % 2 === 0 ? y - 1 : y },            // NE
-          { l: 42, t: 32, nx: x + 1, ny: x % 2 === 0 ? y : y + 1 },            // SE
-          { l: 22, t: 40, nx: x,     ny: y + 1 },                              // S
-          { l: 2,  t: 32, nx: x - 1, ny: x % 2 === 0 ? y : y + 1 },            // SW
-          { l: 2,  t: 13, nx: x - 1, ny: x % 2 === 0 ? y - 1 : y },            // NW
+          { l: 22, t: 2, nx: x, ny: y - 1 }, // N
+          { l: 42, t: 13, nx: x + 1, ny: x % 2 === 0 ? y - 1 : y }, // NE
+          { l: 42, t: 32, nx: x + 1, ny: x % 2 === 0 ? y : y + 1 }, // SE
+          { l: 22, t: 40, nx: x, ny: y + 1 }, // S
+          { l: 2, t: 32, nx: x - 1, ny: x % 2 === 0 ? y : y + 1 }, // SW
+          { l: 2, t: 13, nx: x - 1, ny: x % 2 === 0 ? y - 1 : y }, // NW
         ]
       : [
-          { l: 10, t: 1,  nx: y % 2 === 0 ? x - 1 : x,     ny: y - 1 },        // NW
-          { l: 34, t: 1,  nx: y % 2 === 0 ? x : x + 1,     ny: y - 1 },        // NE
-          { l: 0,  t: 18, nx: x - 1, ny: y },                                   // W
-          { l: 44, t: 18, nx: x + 1, ny: y },                                   // E
-          { l: 10, t: 35, nx: y % 2 === 0 ? x - 1 : x,     ny: y + 1 },        // SW
-          { l: 34, t: 35, nx: y % 2 === 0 ? x : x + 1,     ny: y + 1 },        // SE
+          { l: 10, t: 1, nx: y % 2 === 0 ? x - 1 : x, ny: y - 1 }, // NW
+          { l: 34, t: 1, nx: y % 2 === 0 ? x : x + 1, ny: y - 1 }, // NE
+          { l: 0, t: 18, nx: x - 1, ny: y }, // W
+          { l: 44, t: 18, nx: x + 1, ny: y }, // E
+          { l: 10, t: 35, nx: y % 2 === 0 ? x - 1 : x, ny: y + 1 }, // SW
+          { l: 34, t: 35, nx: y % 2 === 0 ? x : x + 1, ny: y + 1 }, // SE
         ];
 
     for (const { l, t, nx, ny } of defs) {
@@ -282,9 +350,16 @@ export class HexEditorModal extends HexmakerModal {
 
     // Clear terrain — always first in the grid
     if (currentTerrain) {
-      const clearBtn = grid.createDiv({ cls: "duckmage-terrain-option duckmage-terrain-option-clear" });
-      clearBtn.createDiv({ cls: "duckmage-terrain-preview duckmage-terrain-preview-clear" });
-      clearBtn.createSpan({ text: "Clear", cls: "duckmage-terrain-option-name" });
+      const clearBtn = grid.createDiv({
+        cls: "duckmage-terrain-option duckmage-terrain-option-clear",
+      });
+      clearBtn.createDiv({
+        cls: "duckmage-terrain-preview duckmage-terrain-preview-clear",
+      });
+      clearBtn.createSpan({
+        text: "Clear",
+        cls: "duckmage-terrain-option-name",
+      });
       clearBtn.addEventListener("click", async () => {
         await setTerrainInFile(this.app, path, null);
         void this.plugin.syncHexEncounterTableLink(path, null);
@@ -302,7 +377,13 @@ export class HexEditorModal extends HexmakerModal {
       preview.style.backgroundColor = entry.color;
 
       if (entry.icon) {
-        createIconEl(preview, getIconUrl(this.plugin, entry.icon), entry.name, entry.iconColor, "duckmage-terrain-preview-icon");
+        createIconEl(
+          preview,
+          getIconUrl(this.plugin, entry.icon),
+          entry.name,
+          entry.iconColor,
+          "duckmage-terrain-preview-icon",
+        );
       }
 
       btn.createSpan({ text: entry.name, cls: "duckmage-terrain-option-name" });
@@ -346,7 +427,10 @@ export class HexEditorModal extends HexmakerModal {
     iconSelect.addEventListener("change", async () => {
       await this.ensureHexNote();
       await setIconOverrideInFile(this.app, path, iconSelect.value || null);
-      this.onChanged(terrainOverrides, new Map([[path, iconSelect.value || null]]));
+      this.onChanged(
+        terrainOverrides,
+        new Map([[path, iconSelect.value || null]]),
+      );
     });
     const clearIconBtn = iconRow.createEl("button", {
       text: "Clear",
@@ -367,7 +451,10 @@ export class HexEditorModal extends HexmakerModal {
     });
   }
 
-  private getFilesForDropdown(folder: string, filterType?: "roll-filter" | "encounter-filter"): TFile[] {
+  private getFilesForDropdown(
+    folder: string,
+    filterType?: "roll-filter" | "encounter-filter",
+  ): TFile[] {
     const normalized = normalizeFolder(folder);
     const all = this.app.vault.getMarkdownFiles();
     const scoped = normalized
@@ -375,9 +462,10 @@ export class HexEditorModal extends HexmakerModal {
       : all;
     let filtered = scoped.filter((f) => !f.basename.startsWith("_"));
     if (filterType) {
-      const excluded = filterType === "encounter-filter"
-        ? this.plugin.settings.encounterTableExcludedFolders
-        : this.plugin.settings.rollTableExcludedFolders;
+      const excluded =
+        filterType === "encounter-filter"
+          ? this.plugin.settings.encounterTableExcludedFolders
+          : this.plugin.settings.rollTableExcludedFolders;
       filtered = this.plugin.filterTableFiles(filtered, filterType, excluded);
     }
     return filtered.sort((a, b) => a.basename.localeCompare(b.basename));
@@ -391,8 +479,13 @@ export class HexEditorModal extends HexmakerModal {
     sourceFolder: string,
     initialLinks: string[],
   ): void {
-    const sectionEl = container.createDiv({ cls: "duckmage-editor-link-section" });
-    sectionEl.createEl("h4", { text: section, cls: "duckmage-link-section-title" });
+    const sectionEl = container.createDiv({
+      cls: "duckmage-editor-link-section",
+    });
+    sectionEl.createEl("h4", {
+      text: section,
+      cls: "duckmage-link-section-title",
+    });
 
     // ── Combo box ──────────────────────────────────────────────────────────
     const comboWrap = sectionEl.createDiv({ cls: "duckmage-link-combo" });
@@ -407,19 +500,26 @@ export class HexEditorModal extends HexmakerModal {
       cls: "duckmage-link-combo-arrow",
       title: "Show all",
     });
-    const dropdown = comboWrap.createDiv({ cls: "duckmage-link-combo-dropdown" });
+    const dropdown = comboWrap.createDiv({
+      cls: "duckmage-link-combo-dropdown",
+    });
     dropdown.style.display = "none";
 
     // ── Link list ──────────────────────────────────────────────────────────
     const linksEl = sectionEl.createDiv({ cls: "duckmage-link-list" });
 
     let currentLinks = hexExists ? [...initialLinks] : [];
-    const filterType = section === "Encounters Table" ? "encounter-filter" as const : undefined;
+    const filterType =
+      section === "Encounters Table"
+        ? ("encounter-filter" as const)
+        : undefined;
 
     const onItemClick =
       section === "Encounters Table"
         ? async (_link: string, file: TFile) => {
-            const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_RANDOM_TABLES);
+            const leaves = this.app.workspace.getLeavesOfType(
+              VIEW_TYPE_RANDOM_TABLES,
+            );
             if (leaves.length > 0) {
               this.app.workspace.revealLeaf(leaves[0]);
               (leaves[0].view as any).openTable?.(file.path);
@@ -435,11 +535,16 @@ export class HexEditorModal extends HexmakerModal {
     const onRollClick =
       section === "Encounters Table"
         ? (file: TFile) =>
-            new RandomTableModal(this.app, this.plugin, undefined, file.path).open()
+            new RandomTableModal(
+              this.app,
+              this.plugin,
+              undefined,
+              file.path,
+            ).open()
         : undefined;
 
     const onRemove = async (link: string) => {
-      currentLinks = currentLinks.filter(l => l !== link);
+      currentLinks = currentLinks.filter((l) => l !== link);
       refresh();
       await removeLinkFromSection(this.app, path, section, link);
       this.onChanged();
@@ -447,7 +552,14 @@ export class HexEditorModal extends HexmakerModal {
 
     const refresh = () => {
       linksEl.empty();
-      this.renderLinkList(linksEl, currentLinks, path, onRemove, onItemClick, onRollClick);
+      this.renderLinkList(
+        linksEl,
+        currentLinks,
+        path,
+        onRemove,
+        onItemClick,
+        onRollClick,
+      );
     };
 
     refresh();
@@ -459,7 +571,7 @@ export class HexEditorModal extends HexmakerModal {
       const files = this.getFilesForDropdown(sourceFolder, filterType);
       if (!query) return files;
       const q = query.toLowerCase();
-      return files.filter(f => f.basename.toLowerCase().includes(q));
+      return files.filter((f) => f.basename.toLowerCase().includes(q));
     };
 
     const populateDropdown = (query: string) => {
@@ -468,7 +580,10 @@ export class HexEditorModal extends HexmakerModal {
       const files = getFiltered(trimmed);
 
       if (files.length === 0 && !trimmed) {
-        dropdown.createDiv({ cls: "duckmage-link-combo-empty", text: "No files in folder" });
+        dropdown.createDiv({
+          cls: "duckmage-link-combo-empty",
+          text: "No files in folder",
+        });
       }
 
       for (const file of files) {
@@ -480,7 +595,9 @@ export class HexEditorModal extends HexmakerModal {
         });
       }
 
-      const exactMatch = files.some(f => f.basename.toLowerCase() === trimmed.toLowerCase());
+      const exactMatch = files.some(
+        (f) => f.basename.toLowerCase() === trimmed.toLowerCase(),
+      );
       if (trimmed && !exactMatch) {
         const createItem = dropdown.createDiv({
           cls: "duckmage-link-combo-item duckmage-link-combo-create",
@@ -508,7 +625,10 @@ export class HexEditorModal extends HexmakerModal {
       closeDropdown();
       input.value = "";
       const hexFile = await this.ensureHexNote();
-      if (!hexFile) { new Notice("Could not create hex note."); return; }
+      if (!hexFile) {
+        new Notice("Could not create hex note.");
+        return;
+      }
       const linkPath = this.app.metadataCache.fileToLinktext(file, path);
       currentLinks = [...currentLinks, linkPath];
       refresh();
@@ -540,8 +660,14 @@ export class HexEditorModal extends HexmakerModal {
         }
       }
       const hexFile = await this.ensureHexNote();
-      if (!hexFile) { new Notice("Could not create hex note."); return; }
-      const linkPath = this.app.metadataCache.fileToLinktext(file as TFile, path);
+      if (!hexFile) {
+        new Notice("Could not create hex note.");
+        return;
+      }
+      const linkPath = this.app.metadataCache.fileToLinktext(
+        file as TFile,
+        path,
+      );
       currentLinks = [...currentLinks, linkPath];
       refresh();
       void addLinkToSection(this.app, path, section, `[[${linkPath}]]`);
@@ -550,18 +676,26 @@ export class HexEditorModal extends HexmakerModal {
     };
 
     input.addEventListener("focus", () => openDropdown());
-    input.addEventListener("blur", () => setTimeout(() => closeDropdown(), 150));
+    input.addEventListener("blur", () =>
+      setTimeout(() => closeDropdown(), 150),
+    );
     input.addEventListener("input", () => {
       if (!isOpen) openDropdown();
       else populateDropdown(input.value);
     });
     input.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (e.key === "Escape") { closeDropdown(); input.blur(); return; }
+      if (e.key === "Escape") {
+        closeDropdown();
+        input.blur();
+        return;
+      }
       if (e.key === "Enter") {
         const trimmed = input.value.trim();
         if (!trimmed) return;
         const files = getFiltered(trimmed);
-        const exact = files.find(f => f.basename.toLowerCase() === trimmed.toLowerCase());
+        const exact = files.find(
+          (f) => f.basename.toLowerCase() === trimmed.toLowerCase(),
+        );
         if (exact) void selectFile(exact);
         else if (files.length === 1) void selectFile(files[0]);
         else void createAndLink(trimmed);
@@ -571,7 +705,10 @@ export class HexEditorModal extends HexmakerModal {
     arrowBtn.addEventListener("mousedown", (e) => e.preventDefault());
     arrowBtn.addEventListener("click", () => {
       if (isOpen) closeDropdown();
-      else { input.focus(); openDropdown(); }
+      else {
+        input.focus();
+        openDropdown();
+      }
     });
   }
 
@@ -686,7 +823,9 @@ export class HexEditorModal extends HexmakerModal {
     });
 
     // 📖 button: terrain description table (description section) or section-specific table
-    const tablesFolder = normalizeFolder(this.plugin.settings.tablesFolder ?? "");
+    const tablesFolder = normalizeFolder(
+      this.plugin.settings.tablesFolder ?? "",
+    );
     let previewTablePath: string | null = null;
     let previewTitle = "";
 
@@ -720,7 +859,9 @@ export class HexEditorModal extends HexmakerModal {
     });
 
     if (previewTablePath) {
-      const btnGroup = labelRow.createDiv({ cls: "duckmage-text-section-btn-group" });
+      const btnGroup = labelRow.createDiv({
+        cls: "duckmage-text-section-btn-group",
+      });
       const previewBtn = btnGroup.createEl("button", {
         text: "📖",
         cls: "duckmage-section-desc-table-btn",
@@ -728,11 +869,16 @@ export class HexEditorModal extends HexmakerModal {
       previewBtn.title = previewTitle;
       const capturedPath = previewTablePath;
       previewBtn.addEventListener("click", () => {
-        new RandomTableModal(this.app, this.plugin, (result) => {
-          if (textarea.value && !textarea.value.endsWith("\n"))
-            textarea.value += "\n";
-          textarea.value += result;
-        }, capturedPath).open();
+        new RandomTableModal(
+          this.app,
+          this.plugin,
+          (result) => {
+            if (textarea.value && !textarea.value.endsWith("\n"))
+              textarea.value += "\n";
+            textarea.value += result;
+          },
+          capturedPath,
+        ).open();
       });
     }
     textarea.rows = 3;
