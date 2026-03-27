@@ -194,6 +194,10 @@ export default class DuckmagePlugin extends Plugin {
 			if (road  && anyData.roadColor  as string) road.color  = anyData.roadColor  as string;
 			if (river && anyData.riverColor as string) river.color = anyData.riverColor as string;
 		}
+		// Migrate "between" routing → "meander"
+		for (const pt of this.settings.pathTypes) {
+			if ((pt.routing as string) === "between") pt.routing = "meander";
+		}
 		// Ensure terrainPalettes is valid
 		if (!Array.isArray(this.settings.terrainPalettes) || this.settings.terrainPalettes.length === 0) {
 			this.settings.terrainPalettes = DEFAULT_SETTINGS.terrainPalettes.map(p => ({

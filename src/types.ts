@@ -1,12 +1,12 @@
 export type PathLineStyle = "solid" | "dashed" | "dotted";
-export type PathRouting   = "through" | "between";
+export type PathRouting   = "through" | "meander" | "edge";
 
 export interface PathType {
 	name: string;
 	color: string;
 	width: number;            // 1–10, direct SVG stroke-width
 	lineStyle: PathLineStyle;
-	routing: PathRouting;     // "through" = hex centers; "between" = edge midpoints
+	routing: PathRouting;     // "through" = hex centers; "meander" = edge midpoints (curved); "edge" = along hex boundary lines
 }
 
 export interface PathChain {

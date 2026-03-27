@@ -284,7 +284,7 @@ export const LIMITED_TERRAIN_PALETTE: TerrainColor[] = [
 
 export const DEFAULT_PATH_TYPES: PathType[] = [
   { name: "Road",  color: "#a16207", width: 4, lineStyle: "solid", routing: "through" },
-  { name: "River", color: "#3b82f6", width: 3, lineStyle: "solid", routing: "through" },
+  { name: "River", color: "#3b82f6", width: 3, lineStyle: "solid", routing: "meander" },
 ];
 
 export const DEFAULT_SETTINGS: DuckmagePluginSettings = {

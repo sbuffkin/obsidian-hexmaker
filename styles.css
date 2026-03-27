@@ -2291,8 +2291,8 @@ tr:hover .duckmage-rt-entry-copy-btn:hover {
     border-radius: 4px;
     cursor: pointer;
     white-space: nowrap;
-    margin-top: 4px;
-    margin-bottom: 2px;
+    margin-top: 2px;
+    margin-bottom: 0.5em;
 }
 .duckmage-table-editor-add-one-btn:hover {
     color: var(--text-normal);

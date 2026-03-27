@@ -102,8 +102,9 @@ export class PathTypeEditorModal extends DuckmageModal {
 			.setName("Routing")
 			.addDropdown(dd =>
 				dd
-					.addOption("through", "Through hex centers")
-					.addOption("between", "Along hex edges")
+					.addOption("through",  "Through hex centers")
+					.addOption("meander",  "Meander (curves via edge midpoints)")
+					.addOption("edge",     "Along hex edges (tight boundary)")
 					.setValue(this.pendingRouting)
 					.onChange(value => {
 						this.pendingRouting = value as PathRouting;
