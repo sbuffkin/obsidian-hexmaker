@@ -1,6 +1,44 @@
 # Hexmaker
 
-An Obsidian plugin for tabletop RPG hex-map world-building. Each hex on the map corresponds to a Markdown note in your vault, letting you attach terrain, locations, and prose directly to the geography of your world.
+An Obsidian plugin for tabletop RPG hex-map world-building. Each hex on the map is a Markdown note in your vault — attach terrain, locations, paths, and prose directly to the geography of your world.
+
+![A populated hex map showing multiple terrain types, icons, and drawn paths](docs/Hero.PNG)
+
+---
+
+## What it does
+
+Hexmaker gives you an interactive hex grid that lives inside Obsidian. Paint terrain, draw roads and rivers, link town and dungeon notes to individual hexes, roll random encounters, and browse everything in a spreadsheet view — all without leaving your vault. Every hex is a plain Markdown file you own.
+
+### Hex editor
+
+Right-click any hex to open the editor: set terrain, override the icon, link Towns, Dungeons, Features, and Encounters Tables, and write freeform notes (Description, Landmark, Hidden, Secret, Weather, Hooks & Rumors). A 🎲 button on each section lets you roll any random table and append the result inline.
+
+![The hex editor showing terrain, links, and notes for a single hex](docs/Editor.PNG)
+
+### Terrain painting
+
+Switch to the Terrain tool, pick a colour from your palette, and drag across hexes to paint. Choose a 1×, 3×, or 7× brush for broad strokes. An eyedropper lets you sample an existing hex's terrain as your active brush.
+
+![Terrain being painted across multiple hexes with the drag brush](docs/TerrainPaint.gif)
+
+### Path drawing
+
+Click the Path button to open the path picker. Select any defined path type — road, river, or anything you've created — then click hexes to lay down a chain. Each type has its own colour, width, line style (solid / dashed / dotted), and routing mode (through hex centres, meandering between them, or tracing hex edges). Edit types at any time from the map toolbar.
+
+![A road path being drawn hex by hex across the map](docs/PathDraw.gif)
+
+### Random tables
+
+A two-panel view for rolling and managing weighted random tables. Click any table to open it, hit Roll to highlight a result, and see percentage odds for every entry. Create new table files from the toolbar, edit entries inline, and chain tables together into multi-step **workflows** that fill a template note with rolled results.
+
+![Rolling on a random table and seeing the result highlighted](docs/RandomTable.gif)
+
+### Hex table view
+
+A scrollable spreadsheet of every hex note — one row per hex, columns for terrain, description, towns, dungeons, features, quests, factions, encounters table, and all the freeform sections. Click any cell to edit it in place. Filter by region, terrain type, or the presence of specific link types. The ◎ button jumps the map view to that hex's position.
+
+![The hex table view showing a grid of hex notes with populated columns](docs/Table.PNG)
 
 ---
 
@@ -194,17 +232,16 @@ app.plugins.enablePlugin('hexmaker-plugin');
 ### Source layout
 
 ```
-main.ts                          ← re-exports DuckmagePlugin
+main.ts                          ← re-exports HexmakerPlugin
 src/
-  DuckmagePlugin.ts              ← plugin entry point
-  DuckmageSettingTab.ts          ← settings UI
-  DuckmageModal.ts               ← base modal class (all modals extend this)
+  HexmakerPlugin.ts              ← plugin entry point
+  HexmakerSettingTab.ts          ← settings UI
+  HexmakerModal.ts               ← base modal class (all modals extend this)
   types.ts                       ← interfaces and type constants
   constants.ts                   ← runtime constants and defaults
   frontmatter.ts                 ← terrain/icon YAML read/write
   sections.ts                    ← markdown section read/write helpers
   utils.ts                       ← shared utilities
-  bundledIcons.ts                ← built-in PNG icons embedded as data URLs
   defaultHexTemplate.md          ← built-in hex note template
   hex-map/
     HexMapView.ts                ← interactive hex grid (ItemView)
@@ -213,8 +250,12 @@ src/
     TerrainEntryEditorModal.ts   ← edit a single terrain entry
     IconPickerModal.ts           ← icon override picker
     RegionModal.ts               ← region management
+    PathPickerModal.ts           ← path type picker
+    PathTypeEditorModal.ts       ← edit a single path type
+    FileLinkSuggestModal.ts      ← file picker scoped to a folder
   hex-table/
     HexTableView.ts              ← hex reference table (ItemView)
+    HexCellModal.ts              ← inline cell editor
     HexTerrainPickerModal.ts     ← terrain picker in table view
   random-tables/
     RandomTableView.ts           ← random tables + workflows panel (ItemView)
