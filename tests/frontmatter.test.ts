@@ -1,3 +1,5 @@
+import { describe, it, mock } from "node:test";
+import expect from "expect";
 import { TFile } from "obsidian";
 import { getTerrainFromFile, setTerrainInFile, getIconOverrideFromFile, setIconOverrideInFile } from "../src/frontmatter";
 
@@ -13,7 +15,7 @@ function makeApp(filePath: string, initialContent: string) {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
 		},
 		fileManager: {
-			processFrontMatter: jest.fn(async (_f: unknown, fn: (fm: Record<string, unknown>) => void) => {
+			processFrontMatter: mock.fn(async (_f: unknown, fn: (fm: Record<string, unknown>) => void) => {
 				const fmMatch = stored.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
 				const fm: Record<string, unknown> = {};
 				if (fmMatch) {
@@ -29,7 +31,7 @@ function makeApp(filePath: string, initialContent: string) {
 			}),
 		},
 		metadataCache: {
-			getFileCache: jest.fn(() => null),
+			getFileCache: mock.fn(() => null),
 		},
 	} as unknown as import("obsidian").App;
 
@@ -148,7 +150,7 @@ function makeAppWithCache(filePath: string, frontmatter: Record<string, unknown>
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
 		},
 		metadataCache: {
-			getFileCache: jest.fn(() => (frontmatter !== null ? { frontmatter } : null)),
+			getFileCache: mock.fn(() => (frontmatter !== null ? { frontmatter } : null)),
 		},
 	} as unknown as import("obsidian").App;
 

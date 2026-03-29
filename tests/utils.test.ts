@@ -1,3 +1,5 @@
+import { describe, it, mock } from "node:test";
+import expect from "expect";
 import { TFile } from "obsidian";
 import { normalizeFolder, makeTableTemplate, getIconUrl } from "../src/utils";
 import type HexmakerPlugin from "../src/HexmakerPlugin";
@@ -110,9 +112,9 @@ function makePluginForIcon(
     app: {
       vault: {
         adapter: {
-          getResourcePath: jest.fn((p: string) => { lastPath = p; return `resource://${p}`; }),
+          getResourcePath: mock.fn((p: string) => { lastPath = p; return `resource://${p}`; }),
         },
-        getAbstractFileByPath: jest.fn((path: string) => {
+        getAbstractFileByPath: mock.fn((path: string) => {
           const filename = path.split("/").pop() ?? "";
           if (vaultIconSet.has(filename)) {
             const f = Object.create(TFile.prototype) as TFile;
@@ -121,7 +123,7 @@ function makePluginForIcon(
           }
           return null;
         }),
-        getResourcePath: jest.fn((f: TFile) => { lastPath = f.path; return `resource://${f.path}`; }),
+        getResourcePath: mock.fn((f: TFile) => { lastPath = f.path; return `resource://${f.path}`; }),
       },
     },
   } as unknown as HexmakerPlugin;

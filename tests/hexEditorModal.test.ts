@@ -1,3 +1,5 @@
+import { describe, it, mock } from "node:test";
+import expect from "expect";
 import { TFile } from "obsidian";
 import { HexEditorModal } from "../src/hex-map/HexEditorModal";
 
@@ -15,10 +17,10 @@ function makeApp(files: Record<string, string>) {
 	return {
 		vault: {
 			getAbstractFileByPath: (p: string) => fileObjs.get(p) ?? null,
-			read: jest.fn(async (f: TFile) => files[f.path] ?? ""),
+			read: mock.fn(async (f: TFile) => files[f.path] ?? ""),
 		},
 		metadataCache: {
-			getFileCache: jest.fn(() => null),
+			getFileCache: mock.fn(() => null),
 		},
 	} as unknown as import("obsidian").App;
 }
@@ -26,7 +28,7 @@ function makeApp(files: Record<string, string>) {
 /** Minimal plugin stub — only what loadData() needs. */
 function makePlugin(hexPathFn: (x: number, y: number) => string) {
 	return {
-		hexPath: jest.fn(hexPathFn),
+		hexPath: mock.fn(hexPathFn),
 		settings: {
 			terrainPalette: [],
 			tablesFolder: "tables",

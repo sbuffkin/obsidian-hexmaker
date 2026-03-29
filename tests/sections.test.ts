@@ -1,3 +1,6 @@
+import { describe, it, mock } from "node:test";
+import assert from "node:assert/strict";
+import expect from "expect";
 import { TFile } from "obsidian";
 import {
 	addLinkToSection,
@@ -19,13 +22,13 @@ function makeApp(filePath: string, initialContent: string) {
 	const app = {
 		vault: {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
-			read: jest.fn(async () => stored),
-			process: jest.fn(async (_f: unknown, fn: (s: string) => string) => { stored = fn(stored); return stored; }),
+			read: mock.fn(async () => stored),
+			process: mock.fn(async (_f: unknown, fn: (s: string) => string) => { stored = fn(stored); return stored; }),
 		},
 		metadataCache: {
-			getFileCache: jest.fn(() => null),
-			getFirstLinkpathDest: jest.fn(() => null),
-			fileToLinktext: jest.fn((f: TFile) => f.path),
+			getFileCache: mock.fn(() => null),
+			getFirstLinkpathDest: mock.fn(() => null),
+			fileToLinktext: mock.fn((f: TFile) => f.path),
 		},
 	} as unknown as import("obsidian").App;
 
@@ -331,20 +334,20 @@ function makeAppForBacklink(
 				if (p === targetPath) return targetFile;
 				return null;
 			},
-			read: jest.fn(async (f: TFile) => contents[f.path] ?? ""),
-			process: jest.fn(async (f: TFile, fn: (s: string) => string) => { contents[f.path] = fn(contents[f.path] ?? ""); return contents[f.path]; }),
+			read: mock.fn(async (f: TFile) => contents[f.path] ?? ""),
+			process: mock.fn(async (f: TFile, fn: (s: string) => string) => { contents[f.path] = fn(contents[f.path] ?? ""); return contents[f.path]; }),
 		},
 		metadataCache: {
-			getFileCache: jest.fn((f: TFile) => {
+			getFileCache: mock.fn((f: TFile) => {
 				if (f === targetFile && existingBacklinkToHex) {
 					return { links: [{ link: hexPath }] };
 				}
 				return null;
 			}),
-			getFirstLinkpathDest: jest.fn((_link: string, _src: string) =>
+			getFirstLinkpathDest: mock.fn((_link: string, _src: string) =>
 				existingBacklinkToHex ? hexFile : null,
 			),
-			fileToLinktext: jest.fn((f: TFile, _src: string) => f.path.replace(/\.md$/, "")),
+			fileToLinktext: mock.fn((f: TFile, _src: string) => f.path.replace(/\.md$/, "")),
 		},
 	} as unknown as import("obsidian").App;
 
@@ -388,6 +391,6 @@ describe("addBacklinkToFile", () => {
 		);
 		await addBacklinkToFile(app, "notes/town.md", "hex/1_1.md");
 		// process should never have been called
-		expect(app.vault.process).not.toHaveBeenCalled();
+		assert.strictEqual(app.vault.process.mock.callCount(), 0, "process should not have been called");
 	});
 });
