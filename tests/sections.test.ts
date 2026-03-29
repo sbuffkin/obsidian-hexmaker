@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { TFile } from "obsidian";
 import {
 	addLinkToSection,
@@ -20,13 +19,13 @@ function makeApp(filePath: string, initialContent: string) {
 	const app = {
 		vault: {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
-			read: vi.fn(async () => stored),
-			process: vi.fn(async (_f: unknown, fn: (s: string) => string) => { stored = fn(stored); return stored; }),
+			read: jest.fn(async () => stored),
+			process: jest.fn(async (_f: unknown, fn: (s: string) => string) => { stored = fn(stored); return stored; }),
 		},
 		metadataCache: {
-			getFileCache: vi.fn(() => null),
-			getFirstLinkpathDest: vi.fn(() => null),
-			fileToLinktext: vi.fn((f: TFile) => f.path),
+			getFileCache: jest.fn(() => null),
+			getFirstLinkpathDest: jest.fn(() => null),
+			fileToLinktext: jest.fn((f: TFile) => f.path),
 		},
 	} as unknown as import("obsidian").App;
 
@@ -332,20 +331,20 @@ function makeAppForBacklink(
 				if (p === targetPath) return targetFile;
 				return null;
 			},
-			read: vi.fn(async (f: TFile) => contents[f.path] ?? ""),
-			process: vi.fn(async (f: TFile, fn: (s: string) => string) => { contents[f.path] = fn(contents[f.path] ?? ""); return contents[f.path]; }),
+			read: jest.fn(async (f: TFile) => contents[f.path] ?? ""),
+			process: jest.fn(async (f: TFile, fn: (s: string) => string) => { contents[f.path] = fn(contents[f.path] ?? ""); return contents[f.path]; }),
 		},
 		metadataCache: {
-			getFileCache: vi.fn((f: TFile) => {
+			getFileCache: jest.fn((f: TFile) => {
 				if (f === targetFile && existingBacklinkToHex) {
 					return { links: [{ link: hexPath }] };
 				}
 				return null;
 			}),
-			getFirstLinkpathDest: vi.fn((_link: string, _src: string) =>
+			getFirstLinkpathDest: jest.fn((_link: string, _src: string) =>
 				existingBacklinkToHex ? hexFile : null,
 			),
-			fileToLinktext: vi.fn((f: TFile, _src: string) => f.path.replace(/\.md$/, "")),
+			fileToLinktext: jest.fn((f: TFile, _src: string) => f.path.replace(/\.md$/, "")),
 		},
 	} as unknown as import("obsidian").App;
 

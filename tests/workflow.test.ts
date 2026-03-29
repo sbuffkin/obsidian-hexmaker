@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
 import {
 	isDiceFormula,
 	rollDiceFormula,
@@ -72,7 +71,7 @@ describe("isDiceFormula", () => {
 // ── rollDiceFormula ───────────────────────────────────────────────────────────
 
 describe("rollDiceFormula", () => {
-	afterEach(() => vi.restoreAllMocks());
+	afterEach(() => jest.restoreAllMocks());
 
 	it("returns 0 for invalid formula", () => {
 		expect(rollDiceFormula("invalid")).toBe(0);
@@ -80,37 +79,37 @@ describe("rollDiceFormula", () => {
 	});
 
 	it("rolls a single die with mocked random", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // floor(0 * 6) + 1 = 1
+		jest.spyOn(Math, "random").mockReturnValue(0); // floor(0 * 6) + 1 = 1
 		expect(rollDiceFormula("1d6")).toBe(1);
 	});
 
 	it("applies positive modifier", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // 1 + 6 = 7
+		jest.spyOn(Math, "random").mockReturnValue(0); // 1 + 6 = 7
 		expect(rollDiceFormula("1d6+6")).toBe(7);
 	});
 
 	it("applies negative modifier", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.999); // floor(0.999 * 6) + 1 = 6, 6-3 = 3
+		jest.spyOn(Math, "random").mockReturnValue(0.999); // floor(0.999 * 6) + 1 = 6, 6-3 = 3
 		expect(rollDiceFormula("1d6-3")).toBe(3);
 	});
 
 	it("sums multiple dice", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // each die = 1, 3 dice = 3
+		jest.spyOn(Math, "random").mockReturnValue(0); // each die = 1, 3 dice = 3
 		expect(rollDiceFormula("3d6")).toBe(3);
 	});
 
 	it("omitted die count defaults to 1", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.5); // floor(0.5 * 20) + 1 = 11
+		jest.spyOn(Math, "random").mockReturnValue(0.5); // floor(0.5 * 20) + 1 = 11
 		expect(rollDiceFormula("d20")).toBe(11);
 	});
 
 	it("is case-insensitive", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0);
+		jest.spyOn(Math, "random").mockReturnValue(0);
 		expect(rollDiceFormula("1D6")).toBe(1);
 	});
 
 	it("result is always within valid range for 1d6", () => {
-		vi.restoreAllMocks();
+		jest.restoreAllMocks();
 		for (let i = 0; i < 100; i++) {
 			const r = rollDiceFormula("1d6");
 			expect(r).toBeGreaterThanOrEqual(1);
@@ -122,48 +121,48 @@ describe("rollDiceFormula", () => {
 // ── rollDiceFormulaWithBreakdown ──────────────────────────────────────────────
 
 describe("rollDiceFormulaWithBreakdown", () => {
-	afterEach(() => vi.restoreAllMocks());
+	afterEach(() => jest.restoreAllMocks());
 
 	it("returns '0' for invalid formula", () => {
 		expect(rollDiceFormulaWithBreakdown("invalid")).toBe("0");
 	});
 
 	it("returns plain number for single die with no modifier", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // 1
+		jest.spyOn(Math, "random").mockReturnValue(0); // 1
 		expect(rollDiceFormulaWithBreakdown("1d6")).toBe("1");
 	});
 
 	it("returns plain number for omitted-count single die with no modifier", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.5); // floor(0.5*20)+1 = 11
+		jest.spyOn(Math, "random").mockReturnValue(0.5); // floor(0.5*20)+1 = 11
 		expect(rollDiceFormulaWithBreakdown("d20")).toBe("11");
 	});
 
 	it("returns breakdown for multiple dice", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // each die = 1
+		jest.spyOn(Math, "random").mockReturnValue(0); // each die = 1
 		expect(rollDiceFormulaWithBreakdown("2d6")).toBe("(1+1)=2");
 	});
 
 	it("includes positive modifier in expression", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // die = 1, total = 1+6 = 7
+		jest.spyOn(Math, "random").mockReturnValue(0); // die = 1, total = 1+6 = 7
 		expect(rollDiceFormulaWithBreakdown("1d6+6")).toBe("(1+6)=7");
 	});
 
 	it("includes negative modifier in expression without double sign", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.999); // floor(0.999*6)+1 = 6, 6-3=3
+		jest.spyOn(Math, "random").mockReturnValue(0.999); // floor(0.999*6)+1 = 6, 6-3=3
 		expect(rollDiceFormulaWithBreakdown("1d6-3")).toBe("(6-3)=3");
 	});
 
 	it("handles multiple dice with modifier", () => {
-		vi.spyOn(Math, "random").mockReturnValue(0); // each die = 1, total = 1+1+6=8
+		jest.spyOn(Math, "random").mockReturnValue(0); // each die = 1, total = 1+1+6=8
 		expect(rollDiceFormulaWithBreakdown("2d6+6")).toBe("(1+1+6)=8");
 	});
 
 	it("breakdown total matches numeric rollDiceFormula result", () => {
 		// Use a fixed random to compare both functions
 		const randomVal = 0.4;
-		vi.spyOn(Math, "random").mockReturnValue(randomVal);
+		jest.spyOn(Math, "random").mockReturnValue(randomVal);
 		const numeric = rollDiceFormula("2d6+3");
-		vi.spyOn(Math, "random").mockReturnValue(randomVal);
+		jest.spyOn(Math, "random").mockReturnValue(randomVal);
 		const breakdown = rollDiceFormulaWithBreakdown("2d6+3");
 		const extracted = parseInt(breakdown.replace(/.*=(-?\d+)$/, "$1"), 10);
 		expect(extracted).toBe(numeric);

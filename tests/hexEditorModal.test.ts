@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { TFile } from "obsidian";
 import { HexEditorModal } from "../src/hex-map/HexEditorModal";
 
@@ -16,10 +15,10 @@ function makeApp(files: Record<string, string>) {
 	return {
 		vault: {
 			getAbstractFileByPath: (p: string) => fileObjs.get(p) ?? null,
-			read: vi.fn(async (f: TFile) => files[f.path] ?? ""),
+			read: jest.fn(async (f: TFile) => files[f.path] ?? ""),
 		},
 		metadataCache: {
-			getFileCache: vi.fn(() => null),
+			getFileCache: jest.fn(() => null),
 		},
 	} as unknown as import("obsidian").App;
 }
@@ -27,7 +26,7 @@ function makeApp(files: Record<string, string>) {
 /** Minimal plugin stub — only what loadData() needs. */
 function makePlugin(hexPathFn: (x: number, y: number) => string) {
 	return {
-		hexPath: vi.fn(hexPathFn),
+		hexPath: jest.fn(hexPathFn),
 		settings: {
 			terrainPalette: [],
 			tablesFolder: "tables",

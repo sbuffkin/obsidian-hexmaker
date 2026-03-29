@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { TFile } from "obsidian";
 import { normalizeFolder, makeTableTemplate, getIconUrl } from "../src/utils";
 import type HexmakerPlugin from "../src/HexmakerPlugin";
@@ -111,9 +110,9 @@ function makePluginForIcon(
     app: {
       vault: {
         adapter: {
-          getResourcePath: vi.fn((p: string) => { lastPath = p; return `resource://${p}`; }),
+          getResourcePath: jest.fn((p: string) => { lastPath = p; return `resource://${p}`; }),
         },
-        getAbstractFileByPath: vi.fn((path: string) => {
+        getAbstractFileByPath: jest.fn((path: string) => {
           const filename = path.split("/").pop() ?? "";
           if (vaultIconSet.has(filename)) {
             const f = Object.create(TFile.prototype) as TFile;
@@ -122,7 +121,7 @@ function makePluginForIcon(
           }
           return null;
         }),
-        getResourcePath: vi.fn((f: TFile) => { lastPath = f.path; return `resource://${f.path}`; }),
+        getResourcePath: jest.fn((f: TFile) => { lastPath = f.path; return `resource://${f.path}`; }),
       },
     },
   } as unknown as HexmakerPlugin;

@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from "vitest";
 import { TFile } from "obsidian";
 import { getTerrainFromFile, setTerrainInFile, getIconOverrideFromFile, setIconOverrideInFile } from "../src/frontmatter";
 
@@ -14,7 +13,7 @@ function makeApp(filePath: string, initialContent: string) {
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
 		},
 		fileManager: {
-			processFrontMatter: vi.fn(async (_f: unknown, fn: (fm: Record<string, unknown>) => void) => {
+			processFrontMatter: jest.fn(async (_f: unknown, fn: (fm: Record<string, unknown>) => void) => {
 				const fmMatch = stored.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
 				const fm: Record<string, unknown> = {};
 				if (fmMatch) {
@@ -30,7 +29,7 @@ function makeApp(filePath: string, initialContent: string) {
 			}),
 		},
 		metadataCache: {
-			getFileCache: vi.fn(() => null),
+			getFileCache: jest.fn(() => null),
 		},
 	} as unknown as import("obsidian").App;
 
@@ -149,7 +148,7 @@ function makeAppWithCache(filePath: string, frontmatter: Record<string, unknown>
 			getAbstractFileByPath: (p: string) => (p === filePath ? file : null),
 		},
 		metadataCache: {
-			getFileCache: vi.fn(() => (frontmatter !== null ? { frontmatter } : null)),
+			getFileCache: jest.fn(() => (frontmatter !== null ? { frontmatter } : null)),
 		},
 	} as unknown as import("obsidian").App;
 
